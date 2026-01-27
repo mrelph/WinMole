@@ -1,0 +1,36 @@
+# PowerShell
+*.ps1xml
+
+# User configuration
+Config/user.json
+
+# Test results
+TestResults/
+*.Tests.ps1.result
+
+# Editor files
+.vscode/
+*.code-workspace
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+~*
+
+# Build artifacts
+bin/
+obj/
+out/
+
+# Package files (when published)
+*.nupkg

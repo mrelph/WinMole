@@ -1,0 +1,44 @@
+{
+    "Cleanup": {
+        "DefaultCategories": ["User", "Browser", "Cache"],
+        "SkipConfirmationForDryRun": true,
+        "MaxFilesToShow": 50
+    },
+    "DiskAnalysis": {
+        "DefaultDepth": 3,
+        "TopNItems": 10,
+        "MinSizeToShow": 1048576
+    },
+    "Status": {
+        "RefreshIntervalSeconds": 2,
+        "ShowHealthScore": true,
+        "TopProcessCount": 5
+    },
+    "DevCleanup": {
+        "DefaultArtifactTypes": ["node_modules", "bin", "obj", "__pycache__"],
+        "DefaultOlderThanDays": 30,
+        "MaxDepth": 10
+    },
+    "Winget": {
+        "AutoUpdateCheck": true,
+        "BatchSize": 10,
+        "SkipPinned": true
+    },
+    "Registry": {
+        "DefaultCategories": ["InvalidPaths", "MissingDLLs", "OrphanedSoftware"],
+        "BackupBeforeClean": true,
+        "MaxItemsPerCategory": 500,
+        "SafeMode": true
+    },
+    "Startup": {
+        "ShowServices": false,
+        "ShowImpact": true,
+        "CategorizeByPublisher": true
+    },
+    "UI": {
+        "UseColors": true,
+        "UseUnicodeChars": true,
+        "ProgressBarWidth": 20,
+        "TableBorders": true
+    }
+}
