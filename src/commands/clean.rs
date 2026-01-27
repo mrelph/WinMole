@@ -51,13 +51,50 @@ pub fn run(dry_run: bool, categories: &[String], force: bool) -> Result<()> {
             }
 
             let size_str = format_size(target.size);
+            let file_count = target.file_count.unwrap_or(0);
             let icon = if target.size > 100 * 1024 * 1024 { "⚠" } else { "●" };
-            let color = if target.size > 100 * 1024 * 1024 { "yellow" } else { "dim" };
 
-            match color {
-                "yellow" => println!("    {} {} - {}", style(icon).yellow(), target.name, style(&size_str).dim()),
-                _ => println!("    {} {} - {}", style(icon).dim(), target.name, style(&size_str).dim()),
+            // Show target name and size
+            if target.size > 100 * 1024 * 1024 {
+                println!("    {} {} - {}", style(icon).yellow(), style(&target.name).white().bold(), style(&size_str).yellow().bold());
+            } else if target.size > 0 {
+                println!("    {} {} - {}", style(icon).dim(), target.name, style(&size_str).dim());
+            } else {
+                println!("    {} {} - {}", style("○").dim(), style(&target.name).dim(), style("empty").dim());
+                continue;
             }
+
+            // Show path
+            println!("      Path: {}", style(target.path.display()).dim());
+
+            // Show description
+            println!("      {}", style(&target.description).dim());
+
+            // Show file count if available
+            if file_count > 0 {
+                println!("      Files: {}", style(file_count).cyan());
+            }
+
+            // Show sample of large files in this target (top 5)
+            if target.size > 10 * 1024 * 1024 && !target.is_file {
+                let large_files = get_large_files(&target.path, 5);
+                if !large_files.is_empty() {
+                    println!("      {} Largest files:", style("→").dim());
+                    for (path, size) in large_files {
+                        let file_name = path.file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or_else(|| "unknown".to_string());
+                        let truncated_name = if file_name.len() > 40 {
+                            format!("{}...", &file_name[..37])
+                        } else {
+                            file_name
+                        };
+                        println!("        {} ({})", style(truncated_name).dim(), format_size(size));
+                    }
+                }
+            }
+
+            println!();
 
             if !dry_run {
                 match clean_target(&target) {
@@ -164,6 +201,32 @@ fn dir_size(path: &PathBuf) -> Result<u64> {
         }
     }
     Ok(size)
+}
+
+fn get_large_files(path: &PathBuf, limit: usize) -> Vec<(PathBuf, u64)> {
+    let mut files: Vec<(PathBuf, u64)> = Vec::new();
+
+    if path.is_dir() {
+        for entry in walkdir::WalkDir::new(path)
+            .max_depth(3)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            if entry.file_type().is_file() {
+                if let Ok(metadata) = entry.metadata() {
+                    let size = metadata.len();
+                    if size > 1024 * 1024 {  // Only files > 1MB
+                        files.push((entry.path().to_path_buf(), size));
+                    }
+                }
+            }
+        }
+    }
+
+    // Sort by size descending and take top N
+    files.sort_by(|a, b| b.1.cmp(&a.1));
+    files.truncate(limit);
+    files
 }
 
 fn is_elevated() -> bool {
