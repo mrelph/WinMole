@@ -4,7 +4,8 @@ use dialoguer::{theme::ColorfulTheme, MultiSelect, Select};
 use sysinfo::{System, ProcessesToUpdate, ProcessStatus};
 use std::collections::HashMap;
 
-use crate::commands::{format_size, print_header, print_success, print_warning, print_error, print_info};
+use crate::commands::format_size;
+use crate::ui::theme::{self, icons, boxes, create_threshold_bar};
 
 pub fn run(action: &str) -> Result<()> {
     match action {
@@ -19,12 +20,12 @@ pub fn run(action: &str) -> Result<()> {
             analyze_services()?;
         }
         _ => {
-            print_header("WinMole System Diagnostics");
+            theme::print_section_header("WinMole System Diagnostics");
             println!("  Available actions:");
-            println!("    {} - Analyze running processes", style("processes").cyan());
-            println!("    {} - Analyze memory usage", style("memory").cyan());
-            println!("    {} - Analyze Windows services", style("services").cyan());
-            println!("    {} - Run all diagnostics", style("all").cyan());
+            println!("    {} {} - Analyze running processes", style(icons::PROGRESS).cyan(), style("processes").cyan());
+            println!("    {} {} - Analyze memory usage", style(icons::PROGRESS).cyan(), style("memory").cyan());
+            println!("    {} {} - Analyze Windows services", style(icons::PROGRESS).cyan(), style("services").cyan());
+            println!("    {} {} - Run all diagnostics", style(icons::PROGRESS).cyan(), style("all").cyan());
         }
     }
 
@@ -33,7 +34,7 @@ pub fn run(action: &str) -> Result<()> {
 }
 
 fn analyze_processes() -> Result<()> {
-    print_header("Process Analysis");
+    theme::print_section_header("Process Analysis");
 
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -65,20 +66,28 @@ fn analyze_processes() -> Result<()> {
     high_cpu.sort_by(|a, b| b.cpu.partial_cmp(&a.cpu).unwrap_or(std::cmp::Ordering::Equal));
 
     if !high_cpu.is_empty() {
-        println!("  {} {}", style("⚠").yellow(), style("High CPU Usage:").yellow().bold());
-        println!();
+        println!("  {}{}{}",
+            style(boxes::TOP_LEFT).red(),
+            style(format!("{} High CPU Usage ", boxes::HORIZONTAL)).red(),
+            style(boxes::HORIZONTAL.repeat(40)).red()
+        );
         for proc in high_cpu.iter().take(10) {
-            let cpu_bar = create_bar(proc.cpu as u32, 20);
-            println!("    {:<25} {:>6.1}% {} PID: {}",
+            let cpu_bar = create_threshold_bar(proc.cpu as u64, 15);
+            println!("  {} {:<25} {:>6.1}% {} {}",
+                style(boxes::VERTICAL).red(),
                 truncate(&proc.name, 25),
                 proc.cpu,
-                style(cpu_bar).red(),
-                style(proc.pid).dim()
+                cpu_bar,
+                style(format!("PID: {}", proc.pid)).dim()
             );
         }
+        println!("  {}{}",
+            style(boxes::BOTTOM_LEFT).red(),
+            style(boxes::HORIZONTAL.repeat(55)).red()
+        );
         println!();
     } else {
-        print_success("No high CPU processes detected");
+        theme::print_success("No high CPU processes detected");
         println!();
     }
 
@@ -89,15 +98,30 @@ fn analyze_processes() -> Result<()> {
     high_mem.sort_by(|a, b| b.memory.cmp(&a.memory));
 
     if !high_mem.is_empty() {
-        println!("  {} {}", style("⚠").yellow(), style("High Memory Usage (>500MB):").yellow().bold());
-        println!();
-        for proc in high_mem.iter().take(10) {
-            println!("    {:<25} {:>10} PID: {}",
+        println!("  {}{}{}",
+            style(boxes::TOP_LEFT).yellow(),
+            style(format!("{} High Memory Usage (>500MB) ", boxes::HORIZONTAL)).yellow(),
+            style(boxes::HORIZONTAL.repeat(30)).yellow()
+        );
+        for (i, proc) in high_mem.iter().take(10).enumerate() {
+            let rank_icon = match i {
+                0 => style("1.").red().bold(),
+                1 => style("2.").yellow().bold(),
+                2 => style("3.").yellow(),
+                _ => style(format!("{}.", i + 1)).dim(),
+            };
+            println!("  {} {} {:<25} {:>10} {}",
+                style(boxes::VERTICAL).yellow(),
+                rank_icon,
                 truncate(&proc.name, 25),
                 style(format_size(proc.memory)).yellow(),
-                style(proc.pid).dim()
+                style(format!("PID: {}", proc.pid)).dim()
             );
         }
+        println!("  {}{}",
+            style(boxes::BOTTOM_LEFT).yellow(),
+            style(boxes::HORIZONTAL.repeat(55)).yellow()
+        );
         println!();
     }
 
@@ -109,16 +133,25 @@ fn analyze_processes() -> Result<()> {
     long_running.sort_by(|a, b| b.run_time.cmp(&a.run_time));
 
     if !long_running.is_empty() {
-        println!("  {} {}", style("ℹ").cyan(), style("Long-running processes (>7 days):").cyan().bold());
-        println!();
+        println!("  {}{}{}",
+            style(boxes::TOP_LEFT).cyan(),
+            style(format!("{} Long-running Processes (>7 days) ", boxes::HORIZONTAL)).cyan(),
+            style(boxes::HORIZONTAL.repeat(25)).cyan()
+        );
         for proc in long_running.iter().take(5) {
             let days = proc.run_time / 86400;
-            println!("    {:<25} {:>4} days PID: {}",
+            println!("  {} {} {:<25} {:>4} days {}",
+                style(boxes::VERTICAL).cyan(),
+                style(icons::STARTUP).dim(),
                 truncate(&proc.name, 25),
                 style(days).cyan(),
-                style(proc.pid).dim()
+                style(format!("PID: {}", proc.pid)).dim()
             );
         }
+        println!("  {}{}",
+            style(boxes::BOTTOM_LEFT).cyan(),
+            style(boxes::HORIZONTAL.repeat(55)).cyan()
+        );
         println!();
     }
 
@@ -137,8 +170,8 @@ fn analyze_processes() -> Result<()> {
 
         if offer_kill == 0 {
             let display_items: Vec<String> = killable.iter()
-                .map(|p| format!("{:<25} CPU: {:>5.1}%  Mem: {:>10}  PID: {}",
-                    truncate(&p.name, 25), p.cpu, format_size(p.memory), p.pid))
+                .map(|p| format!("{} {:<25} CPU: {:>5.1}%  Mem: {:>10}  PID: {}",
+                    icons::PROGRESS, truncate(&p.name, 25), p.cpu, format_size(p.memory), p.pid))
                 .collect();
 
             let selections = MultiSelect::with_theme(&ColorfulTheme::default())
@@ -148,13 +181,15 @@ fn analyze_processes() -> Result<()> {
 
             if let Some(indices) = selections {
                 if !indices.is_empty() {
+                    println!();
+                    theme::print_warning("Terminating processes...");
                     for idx in indices {
                         let proc = killable[idx];
-                        print!("  Terminating {}... ", proc.name);
+                        print!("  {} Terminating {}... ", style(icons::PROGRESS).cyan(), proc.name);
                         if kill_process(proc.pid) {
-                            println!("{}", style("✓").green());
+                            println!("{} {}", style(icons::SUCCESS).green(), style("terminated").green());
                         } else {
-                            println!("{}", style("✗ (access denied or already terminated)").red());
+                            println!("{} {}", style(icons::ERROR).red(), style("failed (access denied)").red());
                         }
                     }
                 }
@@ -166,7 +201,7 @@ fn analyze_processes() -> Result<()> {
 }
 
 fn analyze_memory() -> Result<()> {
-    print_header("Memory Analysis");
+    theme::print_section_header("Memory Analysis");
 
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -176,20 +211,52 @@ fn analyze_memory() -> Result<()> {
     let free_mem = total_mem - used_mem;
     let usage_percent = (used_mem as f64 / total_mem as f64 * 100.0) as u32;
 
-    println!("  Total Memory:     {}", style(format_size(total_mem)).cyan());
-    println!("  Used Memory:      {} ({}%)", style(format_size(used_mem)).yellow(), usage_percent);
-    println!("  Available:        {}", style(format_size(free_mem)).green());
-    println!();
+    // Memory overview box
+    println!("  {}{}{}",
+        style(boxes::TOP_LEFT).cyan(),
+        style(boxes::HORIZONTAL.repeat(50)).cyan(),
+        style(boxes::TOP_RIGHT).cyan()
+    );
+    println!("  {} {} {:<20} {:>20} {}",
+        style(boxes::VERTICAL).cyan(),
+        style(icons::STATUS).cyan(),
+        "Total Memory:",
+        style(format_size(total_mem)).cyan().bold(),
+        style(boxes::VERTICAL).cyan()
+    );
+    println!("  {} {} {:<20} {:>20} {}",
+        style(boxes::VERTICAL).cyan(),
+        style(icons::WARNING).yellow(),
+        "Used Memory:",
+        format!("{} ({}%)", style(format_size(used_mem)).yellow(), usage_percent),
+        style(boxes::VERTICAL).cyan()
+    );
+    println!("  {} {} {:<20} {:>20} {}",
+        style(boxes::VERTICAL).cyan(),
+        style(icons::SUCCESS).green(),
+        "Available:",
+        style(format_size(free_mem)).green(),
+        style(boxes::VERTICAL).cyan()
+    );
+    println!("  {}{}{}",
+        style(boxes::T_RIGHT).cyan(),
+        style(boxes::HORIZONTAL.repeat(50)).cyan(),
+        style(boxes::T_LEFT).cyan()
+    );
 
-    let bar = create_bar(usage_percent, 40);
-    let bar_style = if usage_percent > 90 {
-        style(bar).red()
-    } else if usage_percent > 70 {
-        style(bar).yellow()
-    } else {
-        style(bar).green()
-    };
-    println!("  [{}] {}%", bar_style, usage_percent);
+    let bar = create_threshold_bar(usage_percent as u64, 40);
+    println!("  {}  {} {:>3}%  {}",
+        style(boxes::VERTICAL).cyan(),
+        bar,
+        usage_percent,
+        style(boxes::VERTICAL).cyan()
+    );
+
+    println!("  {}{}{}",
+        style(boxes::BOTTOM_LEFT).cyan(),
+        style(boxes::HORIZONTAL.repeat(50)).cyan(),
+        style(boxes::BOTTOM_RIGHT).cyan()
+    );
     println!();
 
     // Memory by process (top 10)
@@ -199,27 +266,50 @@ fn analyze_memory() -> Result<()> {
         .collect();
     procs.sort_by(|a, b| b.1.cmp(&a.1));
 
-    println!("  {} {}", style("📊").cyan(), style("Top Memory Consumers:").cyan().bold());
+    println!("  {} {}", style(icons::STATUS).cyan(), style("Top Memory Consumers:").cyan().bold());
     println!();
-    for (name, mem) in procs.iter().take(10) {
+
+    // Table header
+    println!("  {:<3} {:<25} {:>12} {:>5} {}",
+        style("#").dim(),
+        style("Process").dim(),
+        style("Memory").dim(),
+        style("%").dim(),
+        style("Usage").dim()
+    );
+    println!("  {}", style(boxes::L_HORIZONTAL.repeat(60)).dim());
+
+    for (i, (name, mem)) in procs.iter().take(10).enumerate() {
         let percent = (*mem as f64 / total_mem as f64 * 100.0) as u32;
-        let mini_bar = create_bar(percent.min(100), 15);
-        println!("    {:<25} {:>10} {:>3}% {}",
+        let mini_bar = create_threshold_bar(percent.min(100) as u64, 12);
+
+        let rank_style = match i {
+            0 => style(format!("{}.", i + 1)).red().bold(),
+            1 => style(format!("{}.", i + 1)).yellow().bold(),
+            2 => style(format!("{}.", i + 1)).yellow(),
+            _ => style(format!("{}.", i + 1)).dim(),
+        };
+
+        println!("  {:<3} {:<25} {:>12} {:>4}% {}",
+            rank_style,
             truncate(name, 25),
             format_size(*mem),
             percent,
-            style(mini_bar).dim()
+            mini_bar
         );
     }
 
     // Memory status
     println!();
     if usage_percent > 90 {
-        print_warning("Memory usage is critical! Consider closing some applications.");
+        theme::print_error_with_solution(
+            "Memory usage is critical!",
+            "Close some applications or consider upgrading RAM"
+        );
     } else if usage_percent > 75 {
-        print_info("Memory usage is elevated. Monitor for potential issues.");
+        theme::print_warning("Memory usage is elevated. Monitor for potential issues.");
     } else {
-        print_success("Memory usage is healthy.");
+        theme::print_success("Memory usage is healthy.");
     }
 
     Ok(())
@@ -229,7 +319,7 @@ fn analyze_memory() -> Result<()> {
 fn analyze_services() -> Result<()> {
     use std::process::Command;
 
-    print_header("Service Analysis");
+    theme::print_section_header("Service Analysis");
 
     // Get services that are set to auto-start but are stopped
     let output = Command::new("powershell")
@@ -243,10 +333,13 @@ fn analyze_services() -> Result<()> {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     if stdout.trim().is_empty() || stdout.trim() == "null" {
-        print_success("All auto-start services are running");
+        theme::print_success("All auto-start services are running");
     } else {
-        println!("  {} {}", style("⚠").yellow(), style("Stopped Auto-Start Services:").yellow().bold());
-        println!();
+        println!("  {}{}{}",
+            style(boxes::TOP_LEFT).yellow(),
+            style(format!("{} Stopped Auto-Start Services ", boxes::HORIZONTAL)).yellow().bold(),
+            style(boxes::HORIZONTAL.repeat(25)).yellow()
+        );
 
         // Parse JSON (simplified)
         let lines: Vec<&str> = stdout.lines().collect();
@@ -270,12 +363,26 @@ fn analyze_services() -> Result<()> {
         // Show stopped services
         for (name, display) in services.iter().take(15) {
             let display_name = if display.is_empty() { name } else { display };
-            println!("    {} {} ({})", style("○").red(), truncate(display_name, 40), style(name).dim());
+            println!("  {} {} {} ({})",
+                style(boxes::VERTICAL).yellow(),
+                style("○").red(),
+                truncate(display_name, 35),
+                style(name).dim()
+            );
         }
 
         if services.len() > 15 {
-            println!("    ... and {} more", services.len() - 15);
+            println!("  {} {} ... and {} more",
+                style(boxes::VERTICAL).yellow(),
+                style(icons::ELLIPSIS).dim(),
+                services.len() - 15
+            );
         }
+
+        println!("  {}{}",
+            style(boxes::BOTTOM_LEFT).yellow(),
+            style(boxes::HORIZONTAL.repeat(55)).yellow()
+        );
 
         // Offer to restart
         if !services.is_empty() {
@@ -290,7 +397,7 @@ fn analyze_services() -> Result<()> {
                 let display_items: Vec<String> = services.iter()
                     .map(|(name, display)| {
                         let d = if display.is_empty() { name } else { display };
-                        format!("{} ({})", d, name)
+                        format!("{} {} ({})", icons::STARTUP, d, name)
                     })
                     .collect();
 
@@ -300,9 +407,10 @@ fn analyze_services() -> Result<()> {
                     .interact_opt()?;
 
                 if let Some(indices) = selections {
+                    println!();
                     for idx in indices {
                         let (name, _) = &services[idx];
-                        print!("  Starting {}... ", name);
+                        print!("  {} Starting {}... ", style(icons::PROGRESS).cyan(), name);
 
                         let result = Command::new("powershell")
                             .args(["-Command", &format!("Start-Service -Name '{}'", name)])
@@ -310,10 +418,10 @@ fn analyze_services() -> Result<()> {
 
                         match result {
                             Ok(out) if out.status.success() => {
-                                println!("{}", style("✓").green());
+                                println!("{} {}", style(icons::SUCCESS).green(), style("started").green());
                             }
                             _ => {
-                                println!("{}", style("✗ (may require admin)").red());
+                                println!("{} {}", style(icons::ERROR).red(), style("failed (may require admin)").red());
                             }
                         }
                     }
@@ -324,7 +432,7 @@ fn analyze_services() -> Result<()> {
 
     // Check for high-resource services
     println!();
-    println!("  {} {}", style("📊").cyan(), style("Checking service resource usage...").dim());
+    print!("  {} Checking service resource usage... ", style(icons::PROGRESS).cyan());
 
     let svc_output = Command::new("powershell")
         .args(["-Command", r#"
@@ -337,8 +445,11 @@ fn analyze_services() -> Result<()> {
 
     let svc_stdout = String::from_utf8_lossy(&svc_output.stdout);
     if !svc_stdout.trim().is_empty() && svc_stdout.trim() != "null" {
+        println!("{}", style("done").green());
         println!();
-        print_info("Some services may be using high resources. Check Process Analysis for details.");
+        theme::print_info("Some services may be using high resources. Check Process Analysis for details.");
+    } else {
+        println!("{}", style("all normal").green());
     }
 
     Ok(())
@@ -346,8 +457,8 @@ fn analyze_services() -> Result<()> {
 
 #[cfg(not(windows))]
 fn analyze_services() -> Result<()> {
-    print_header("Service Analysis");
-    print_warning("Service analysis is only available on Windows");
+    theme::print_section_header("Service Analysis");
+    theme::print_warning("Service analysis is only available on Windows");
     Ok(())
 }
 
@@ -386,12 +497,6 @@ fn kill_process(pid: u32) -> bool {
     {
         false
     }
-}
-
-fn create_bar(percent: u32, width: usize) -> String {
-    let filled = (percent as usize * width / 100).min(width);
-    let empty = width - filled;
-    format!("{}{}", "█".repeat(filled), "░".repeat(empty))
 }
 
 fn truncate(s: &str, max_len: usize) -> String {

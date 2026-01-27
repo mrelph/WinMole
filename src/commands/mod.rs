@@ -11,6 +11,7 @@ use anyhow::Result;
 use console::{style, Term};
 
 use crate::system::{get_health_score, get_cleanable_size};
+use crate::ui::theme::{self, icons, boxes, create_threshold_bar, Trend};
 
 /// Run a quick system scan
 pub fn quick_scan() -> Result<()> {
@@ -26,11 +27,12 @@ pub fn quick_scan() -> Result<()> {
       (_|   |_) "#).cyan());
     println!();
 
-    // Health score
-    print!("  Calculating health score... ");
+    // Health score with spinner effect
+    print!("  {} Calculating health score... ", style(icons::PROGRESS).cyan());
     let health = get_health_score()?;
     println!("{}", style("done").green());
 
+    let health_bar = create_threshold_bar(health.score as u64, 20);
     let health_color = match health.score {
         80..=100 => style(format!("{}/100", health.score)).green().bold(),
         60..=79 => style(format!("{}/100", health.score)).yellow().bold(),
@@ -39,32 +41,71 @@ pub fn quick_scan() -> Result<()> {
     };
 
     println!();
-    println!("  Health Score: {} ({})", health_color, health.status);
+    println!("  {}{}{}",
+        style(boxes::TOP_LEFT).cyan(),
+        style(boxes::HORIZONTAL.repeat(44)).cyan(),
+        style(boxes::TOP_RIGHT).cyan()
+    );
+    println!("  {}  Health Score: {} {}  {}",
+        style(boxes::VERTICAL).cyan(),
+        health_color,
+        health_bar,
+        style(boxes::VERTICAL).cyan()
+    );
+    println!("  {}  Status: {:<35} {}",
+        style(boxes::VERTICAL).cyan(),
+        style(&health.status).white(),
+        style(boxes::VERTICAL).cyan()
+    );
+    println!("  {}{}{}",
+        style(boxes::BOTTOM_LEFT).cyan(),
+        style(boxes::HORIZONTAL.repeat(44)).cyan(),
+        style(boxes::BOTTOM_RIGHT).cyan()
+    );
     println!();
 
     // Cleanable space
-    print!("  Scanning for cleanable files... ");
+    print!("  {} Scanning for cleanable files... ", style(icons::PROGRESS).cyan());
     let cleanable = get_cleanable_size()?;
     println!("{}", style("done").green());
 
     println!();
-    println!("  Cleanable space found: {}", style(format_size(cleanable.total)).yellow().bold());
-    println!("    Temp files:     {}", style(format_size(cleanable.temp)).dim());
-    println!("    Browser cache:  {}", style(format_size(cleanable.browser)).dim());
+    theme::print_section_header("Cleanable Space");
+    println!("  {} Total cleanable:  {}",
+        style(icons::CLEANUP).yellow(),
+        style(format_size(cleanable.total)).yellow().bold()
+    );
+    println!("    {} Temp files:     {}",
+        style(icons::BULLET).dim(),
+        style(format_size(cleanable.temp)).dim()
+    );
+    println!("    {} Browser cache:  {}",
+        style(icons::BULLET).dim(),
+        style(format_size(cleanable.browser)).dim()
+    );
 
     // Recommendations
     if !health.recommendations.is_empty() {
         println!();
-        println!("  {}", style("Recommendations:").cyan().bold());
+        theme::print_section_header("Recommendations");
         for rec in &health.recommendations {
-            println!("    {} {}", style("⚠").yellow(), rec);
+            println!("    {} {}", style(icons::WARNING).yellow(), rec);
         }
     }
 
+    // Next steps
     println!();
-    println!("  Run {} for full interactive menu", style("winmole").cyan());
-    println!("  Run {} to preview cleanup", style("winmole clean --dry-run").cyan());
-    println!();
+    theme::print_result_summary(
+        "QUICK SCAN COMPLETE",
+        &[
+            ("Health Score", format!("{}/100", health.score)),
+            ("Cleanable Space", format_size(cleanable.total)),
+        ],
+        &[
+            "Run 'winmole' for full interactive menu",
+            "Run 'winmole clean --dry-run' to preview cleanup",
+        ],
+    );
 
     Ok(())
 }
@@ -76,37 +117,50 @@ pub fn format_size(bytes: u64) -> String {
 
 /// Print a section header
 pub fn print_header(title: &str) {
-    println!();
-    let padding = 40_i32.saturating_sub(title.len() as i32) / 2;
-    let pad_left = " ".repeat(padding.max(0) as usize);
-    let pad_right = " ".repeat((padding + (title.len() as i32 % 2)).max(0) as usize);
-    println!("  {}", style("┌────────────────────────────────────────────┐").cyan());
-    println!("  {} {}{}{} {}", style("│").cyan(), pad_left, style(title).white().bold(), pad_right, style("│").cyan());
-    println!("  {}", style("└────────────────────────────────────────────┘").cyan());
-    println!();
+    theme::print_section_header(title);
 }
 
 /// Print a success message
 pub fn print_success(message: &str) {
-    println!("  {} {}", style("✓").green(), message);
+    theme::print_success(message);
 }
 
 /// Print a warning message
 pub fn print_warning(message: &str) {
-    println!("  {} {}", style("⚠").yellow(), message);
+    theme::print_warning(message);
 }
 
 /// Print an error message
 pub fn print_error(message: &str) {
-    println!("  {} {}", style("✗").red(), message);
+    theme::print_error(message);
 }
 
 /// Print a progress message
 pub fn print_progress(message: &str) {
-    println!("  {} {}", style("▶").blue(), message);
+    println!("  {} {}", style(icons::PROGRESS).blue(), message);
 }
 
 /// Print an info message
 pub fn print_info(message: &str) {
-    println!("  {} {}", style("ℹ").cyan(), message);
+    theme::print_info(message);
+}
+
+/// Print error with solution
+pub fn print_error_with_solution(error: &str, solution: &str) {
+    theme::print_error_with_solution(error, solution);
+}
+
+/// Print a formatted table
+pub fn print_table(headers: &[&str], rows: &[Vec<String>]) {
+    theme::print_table(headers, rows);
+}
+
+/// Print preview before action
+pub fn print_preview(title: &str, items: &[String], total_size: Option<u64>) {
+    theme::print_preview(title, items, total_size);
+}
+
+/// Print result summary
+pub fn print_result_summary(title: &str, stats: &[(&str, String)], recommendations: &[&str]) {
+    theme::print_result_summary(title, stats, recommendations);
 }

@@ -1,10 +1,11 @@
 use anyhow::Result;
 use console::style;
 
-use crate::commands::{print_header, print_success, print_warning, print_info, print_error};
+use crate::commands::{print_success, print_warning, print_info, print_error};
+use crate::ui::theme::{self, icons};
 
 pub fn run(action: &str, name: Option<&str>, show_impact: bool) -> Result<()> {
-    print_header("WinMole Startup Optimizer");
+    theme::print_section_header("Startup Optimizer");
 
     #[cfg(not(windows))]
     {

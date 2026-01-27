@@ -1,10 +1,11 @@
 use anyhow::Result;
 use console::style;
 
-use crate::commands::{print_header, print_success, print_warning, print_info};
+use crate::commands::{print_success, print_warning, print_info};
+use crate::ui::theme::{self, icons};
 
 pub fn run(mode: &str, categories: &[String], backup_path: Option<&str>) -> Result<()> {
-    print_header("WinMole Registry Cleaner");
+    theme::print_section_header("Registry Cleaner");
 
     #[cfg(not(windows))]
     {

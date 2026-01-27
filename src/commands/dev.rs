@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 use walkdir::WalkDir;
 
-use crate::commands::{format_size, print_header, print_success, print_warning};
+use crate::commands::{format_size, print_success, print_warning};
+use crate::ui::theme::{self, icons};
 
 /// Artifact type definitions
 struct ArtifactDef {
@@ -96,7 +97,7 @@ pub fn run(path: &str, types: &[String], older_than: Option<u32>, dry_run: bool,
         return Err(anyhow::anyhow!("Path not found: {}", path.display()));
     }
 
-    print_header("WinMole Developer Cleanup");
+    theme::print_section_header("Developer Cleanup");
 
     if dry_run {
         print_warning("Running in DRY RUN mode - no folders will be deleted");

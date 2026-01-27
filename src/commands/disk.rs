@@ -5,7 +5,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
-use crate::commands::{format_size, print_header, print_info};
+use crate::commands::format_size;
+use crate::ui::theme::{self, icons, boxes, create_threshold_bar};
 
 pub fn run(path: &str, mode: &str, depth: usize, top: usize) -> Result<()> {
     let path = PathBuf::from(path);
@@ -14,7 +15,7 @@ pub fn run(path: &str, mode: &str, depth: usize, top: usize) -> Result<()> {
         return Err(anyhow::anyhow!("Path not found: {}", path.display()));
     }
 
-    print_header("WinMole Disk Analysis");
+    theme::print_section_header("Disk Analysis");
 
     match mode {
         "tree" => show_tree(&path, depth, top)?,
@@ -34,7 +35,7 @@ pub fn run(path: &str, mode: &str, depth: usize, top: usize) -> Result<()> {
 }
 
 fn show_tree(path: &PathBuf, max_depth: usize, top_n: usize) -> Result<()> {
-    println!("  {} {}", style("📁").yellow(), style(path.display()).cyan().bold());
+    println!("  {} {}", style(icons::FOLDER).yellow(), style(path.display()).cyan().bold());
     println!();
 
     let spinner = ProgressBar::new_spinner();
@@ -88,7 +89,7 @@ fn show_tree(path: &PathBuf, max_depth: usize, top_n: usize) -> Result<()> {
 
         println!("  {} {} {} ({}) {}",
             style(branch).dim(),
-            style("📁").yellow(),
+            style(icons::FOLDER).yellow(),
             style(&name).cyan(),
             style(format_size(*size)).white(),
             bar
@@ -146,7 +147,7 @@ fn show_subdirs_fast(path: &PathBuf, current_depth: usize, max_depth: usize, par
         println!("  {}{} {} {} ({})",
             prefix,
             style(branch).dim(),
-            style("📁").yellow(),
+            style(icons::FOLDER).yellow(),
             name,
             style(format_size(*size)).dim()
         );
@@ -237,7 +238,7 @@ fn show_largest_folders(path: &PathBuf, top_n: usize) -> Result<()> {
             .to_string_lossy();
 
         println!("  {} {} {} {}",
-            style("📁").yellow(),
+            style(icons::FOLDER).yellow(),
             style(&name).cyan(),
             bar,
             style(format_size(*size)).white()
@@ -299,7 +300,7 @@ fn show_file_types(path: &PathBuf, top_n: usize) -> Result<()> {
 }
 
 fn show_duplicates(path: &PathBuf, top_n: usize) -> Result<()> {
-    print_info("Duplicate detection requires file hashing - this may take a while");
+    theme::print_info("Duplicate detection requires file hashing - this may take a while");
     println!();
     println!("  For large directories, consider using a dedicated tool like 'fdupes' or 'rmlint'");
 

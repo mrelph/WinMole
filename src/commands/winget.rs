@@ -3,7 +3,8 @@ use console::style;
 use dialoguer::{theme::ColorfulTheme, MultiSelect, Select};
 use std::process::Command;
 
-use crate::commands::{print_header, print_success, print_warning, print_error, print_progress};
+use crate::commands::{print_success, print_warning, print_error, print_progress};
+use crate::ui::theme::{self, icons};
 
 pub fn run(action: &str, package: Option<&str>, all: bool) -> Result<()> {
     // Check if winget is available
@@ -17,7 +18,7 @@ pub fn run(action: &str, package: Option<&str>, all: bool) -> Result<()> {
         return Ok(());
     }
 
-    print_header("WinMole Package Manager");
+    theme::print_section_header("Package Manager");
 
     match action {
         "list" => list_packages()?,
@@ -76,9 +77,9 @@ fn list_packages() -> Result<()> {
             let has_update = line.split_whitespace().count() > 3;
 
             if has_update {
-                println!("  {} {}", style("⚠").yellow(), line);
+                println!("  {} {}", style(icons::WARNING).yellow(), line);
             } else {
-                println!("  {} {}", style("✓").green(), line);
+                println!("  {} {}", style(icons::SUCCESS).green(), line);
             }
             count += 1;
 
@@ -124,7 +125,7 @@ fn audit_packages() -> Result<()> {
         }
 
         if !line.trim().is_empty() && !line.contains("winget upgrade") {
-            println!("  {} {}", style("⚠").yellow(), line);
+            println!("  {} {}", style(icons::WARNING).yellow(), line);
             upgradable += 1;
         }
     }
@@ -251,7 +252,7 @@ fn search_packages(query: Option<&str>) -> Result<()> {
         }
 
         if !line.trim().is_empty() {
-            println!("  {} {}", style("●").cyan(), line);
+            println!("  {} {}", style(icons::BULLET).cyan(), line);
             count += 1;
 
             if count >= 20 {
@@ -337,7 +338,7 @@ fn uninstall_package(package: Option<&str>) -> Result<()> {
 
             println!();
             println!("  {} Are you sure you want to uninstall {} ({})?",
-                style("⚠").yellow(),
+                style(icons::WARNING).yellow(),
                 style(name).white().bold(),
                 id
             );
