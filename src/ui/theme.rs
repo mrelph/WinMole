@@ -111,7 +111,7 @@ pub mod boxes {
 
 /// Print a command banner with icon and description
 pub fn print_command_banner(command: &str, icon: &str, description: &str) {
-    let width = 58;
+    let width: usize = 58;
     let content = format!("{} {} - {}", icon, command, description);
     let padding = width.saturating_sub(content.chars().count());
 

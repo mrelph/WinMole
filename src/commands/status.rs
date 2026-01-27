@@ -262,9 +262,9 @@ fn display_status(term: &Term, show_trends: bool) -> Result<()> {
         let mem_mb = *mem as f64 / 1024.0 / 1024.0;
 
         let rank_icon = match i {
-            0 => style("1.").red().bold(),
-            1 => style("2.").yellow().bold(),
-            2 => style("3.").yellow(),
+            0 => style("1.".to_string()).red().bold(),
+            1 => style("2.".to_string()).yellow().bold(),
+            2 => style("3.".to_string()).yellow(),
             _ => style(format!("{}.", i + 1)).dim(),
         };
 

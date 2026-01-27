@@ -27,7 +27,7 @@ pub fn print_logo() {
 
 /// Print a smaller banner for subcommands
 pub fn print_banner(title: &str) {
-    let width = 50;
+    let width: usize = 50;
     let padding = width.saturating_sub(title.len() + 2);
     let left_pad = padding / 2;
     let right_pad = padding - left_pad;
@@ -158,10 +158,37 @@ pub fn run_tui() -> Result<()> {
                                 _ => "summary",
                             };
 
-                            let path: String = dialoguer::Input::new()
-                                .with_prompt("Enter path to analyze")
-                                .default("C:\\Users".to_string())
-                                .interact_text()?;
+                            // Common paths for disk analysis
+                            let path_options = vec![
+                                format!("{} C:\\Users           - User profiles", icons::FOLDER),
+                                format!("{} C:\\               - System drive root", icons::FOLDER),
+                                format!("{} C:\\Program Files  - Installed programs", icons::FOLDER),
+                                format!("{} C:\\Windows\\Temp  - Windows temp files", icons::FOLDER),
+                                format!("{} D:\\               - Secondary drive", icons::FOLDER),
+                                format!("{} Custom path...     - Enter a custom path", icons::BULLET),
+                            ];
+
+                            let path_selection = Select::with_theme(&ColorfulTheme::default())
+                                .with_prompt("Select path to analyze")
+                                .items(&path_options)
+                                .default(0)
+                                .interact_opt()?;
+
+                            let path = match path_selection {
+                                Some(0) => "C:\\Users".to_string(),
+                                Some(1) => "C:\\".to_string(),
+                                Some(2) => "C:\\Program Files".to_string(),
+                                Some(3) => "C:\\Windows\\Temp".to_string(),
+                                Some(4) => "D:\\".to_string(),
+                                Some(5) => {
+                                    dialoguer::Input::new()
+                                        .with_prompt("Enter custom path")
+                                        .default("C:\\".to_string())
+                                        .interact_text()?
+                                }
+                                None => continue,
+                                _ => "C:\\Users".to_string(),
+                            };
 
                             term.clear_screen()?;
                             theme::print_command_banner("Disk Analysis", icons::DISK, mode);
@@ -198,10 +225,41 @@ pub fn run_tui() -> Result<()> {
                 term.clear_screen()?;
                 theme::print_command_banner("Developer Cleanup", icons::DEV, "Remove build artifacts");
 
-                let path: String = dialoguer::Input::new()
-                    .with_prompt("Enter development folder path")
-                    .default(".".to_string())
-                    .interact_text()?;
+                // Common development folder paths
+                let home_dir = dirs::home_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| "C:\\Users".to_string());
+                let path_options = vec![
+                    format!("{} Current directory   - Scan from here", icons::FOLDER),
+                    format!("{} {}\\Projects    - Projects folder", icons::FOLDER, home_dir),
+                    format!("{} {}\\Documents   - Documents folder", icons::FOLDER, home_dir),
+                    format!("{} {}\\source      - Source folder", icons::FOLDER, home_dir),
+                    format!("{} {}\\repos       - Repos folder", icons::FOLDER, home_dir),
+                    format!("{} Custom path...      - Enter a custom path", icons::BULLET),
+                ];
+
+                let path_selection = Select::with_theme(&ColorfulTheme::default())
+                    .with_prompt("Select development folder")
+                    .items(&path_options)
+                    .default(0)
+                    .interact_opt()?;
+
+                let path = match path_selection {
+                    Some(0) => ".".to_string(),
+                    Some(1) => format!("{}\\Projects", home_dir),
+                    Some(2) => format!("{}\\Documents", home_dir),
+                    Some(3) => format!("{}\\source", home_dir),
+                    Some(4) => format!("{}\\repos", home_dir),
+                    Some(5) => {
+                        dialoguer::Input::new()
+                            .with_prompt("Enter custom path")
+                            .default(".".to_string())
+                            .interact_text()?
+                    }
+                    None => {
+                        wait_for_enter()?;
+                        continue;
+                    }
+                    _ => ".".to_string(),
+                };
 
                 commands::dev::run(
                     &path,
@@ -408,26 +466,92 @@ pub fn run_tui() -> Result<()> {
                                 }
                                 2 => {
                                     theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Disable startup item");
-                                    commands::startup::run("list", None, false)?;
-                                    println!();
-                                    let name: String = dialoguer::Input::new()
-                                        .with_prompt("Enter name of item to disable")
-                                        .interact_text()?;
-                                    if !name.is_empty() {
-                                        commands::startup::run("disable", Some(&name), false)?;
-                                        theme::print_success(&format!("Disabled: {}", name));
+                                    let items = commands::startup::get_startup_items();
+                                    let enabled_items: Vec<_> = items.iter().filter(|i| i.enabled).collect();
+
+                                    if enabled_items.is_empty() {
+                                        theme::print_warning("No enabled startup items found");
+                                    } else {
+                                        let mut options: Vec<String> = enabled_items.iter()
+                                            .map(|i| {
+                                                let impact_str = match i.impact.as_str() {
+                                                    "High" => format!("{}", style("High").red()),
+                                                    "Medium" => format!("{}", style("Medium").yellow()),
+                                                    "Low" => format!("{}", style("Low").green()),
+                                                    _ => format!("{}", style("Unknown").dim()),
+                                                };
+                                                format!("{:<30} {} - {}", i.name, i.category, impact_str)
+                                            })
+                                            .collect();
+                                        options.push(format!("{} Cancel", icons::BACK));
+
+                                        let selection = Select::with_theme(&ColorfulTheme::default())
+                                            .with_prompt("Select item to disable")
+                                            .items(&options)
+                                            .default(0)
+                                            .interact_opt()?;
+
+                                        if let Some(idx) = selection {
+                                            if idx < enabled_items.len() {
+                                                let name = &enabled_items[idx].name;
+                                                commands::startup::run("disable", Some(name), false)?;
+                                                theme::print_success(&format!("Disabled: {}", name));
+                                            }
+                                        }
                                     }
                                 }
                                 3 => {
                                     theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Enable startup item");
-                                    commands::startup::run("list", None, false)?;
-                                    println!();
-                                    let name: String = dialoguer::Input::new()
-                                        .with_prompt("Enter name of item to enable")
-                                        .interact_text()?;
-                                    if !name.is_empty() {
-                                        commands::startup::run("enable", Some(&name), false)?;
-                                        theme::print_success(&format!("Enabled: {}", name));
+                                    let items = commands::startup::get_startup_items();
+                                    let disabled_items: Vec<_> = items.iter().filter(|i| !i.enabled).collect();
+
+                                    if disabled_items.is_empty() {
+                                        // Show all items since we can't easily detect disabled state from registry
+                                        let mut options: Vec<String> = items.iter()
+                                            .map(|i| {
+                                                let impact_str = match i.impact.as_str() {
+                                                    "High" => format!("{}", style("High").red()),
+                                                    "Medium" => format!("{}", style("Medium").yellow()),
+                                                    "Low" => format!("{}", style("Low").green()),
+                                                    _ => format!("{}", style("Unknown").dim()),
+                                                };
+                                                format!("{:<30} {} - {}", i.name, i.category, impact_str)
+                                            })
+                                            .collect();
+                                        options.push(format!("{} Cancel", icons::BACK));
+
+                                        let selection = Select::with_theme(&ColorfulTheme::default())
+                                            .with_prompt("Select item to enable")
+                                            .items(&options)
+                                            .default(0)
+                                            .interact_opt()?;
+
+                                        if let Some(idx) = selection {
+                                            if idx < items.len() {
+                                                let name = &items[idx].name;
+                                                commands::startup::run("enable", Some(name), false)?;
+                                                theme::print_success(&format!("Enabled: {}", name));
+                                            }
+                                        }
+                                    } else {
+                                        let mut options: Vec<String> = disabled_items.iter()
+                                            .map(|i| format!("{:<30} {}", i.name, i.category))
+                                            .collect();
+                                        options.push(format!("{} Cancel", icons::BACK));
+
+                                        let selection = Select::with_theme(&ColorfulTheme::default())
+                                            .with_prompt("Select item to enable")
+                                            .items(&options)
+                                            .default(0)
+                                            .interact_opt()?;
+
+                                        if let Some(idx) = selection {
+                                            if idx < disabled_items.len() {
+                                                let name = &disabled_items[idx].name;
+                                                commands::startup::run("enable", Some(name), false)?;
+                                                theme::print_success(&format!("Enabled: {}", name));
+                                            }
+                                        }
                                     }
                                 }
                                 _ => {}

@@ -105,9 +105,9 @@ fn analyze_processes() -> Result<()> {
         );
         for (i, proc) in high_mem.iter().take(10).enumerate() {
             let rank_icon = match i {
-                0 => style("1.").red().bold(),
-                1 => style("2.").yellow().bold(),
-                2 => style("3.").yellow(),
+                0 => style("1.".to_string()).red().bold(),
+                1 => style("2.".to_string()).yellow().bold(),
+                2 => style("3.".to_string()).yellow(),
                 _ => style(format!("{}.", i + 1)).dim(),
             };
             println!("  {} {} {:<25} {:>10} {}",

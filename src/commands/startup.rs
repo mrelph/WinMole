@@ -4,6 +4,100 @@ use console::style;
 use crate::commands::{print_success, print_warning, print_info, print_error};
 use crate::ui::theme::{self, icons};
 
+/// Simplified startup item info for UI selection
+#[derive(Clone)]
+pub struct StartupItemInfo {
+    pub name: String,
+    pub enabled: bool,
+    pub category: String,
+    pub impact: String,
+}
+
+/// Get list of startup items for UI selection
+pub fn get_startup_items() -> Vec<StartupItemInfo> {
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
+
+    #[cfg(windows)]
+    {
+        get_startup_items_windows()
+    }
+}
+
+#[cfg(windows)]
+fn get_startup_items_windows() -> Vec<StartupItemInfo> {
+    use winreg::enums::*;
+    use winreg::RegKey;
+
+    let mut items: Vec<StartupItemInfo> = Vec::new();
+
+    let registry_locations = [
+        (HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
+        (HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
+        (HKEY_LOCAL_MACHINE, "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run"),
+    ];
+
+    for (hkey, path) in &registry_locations {
+        let root = RegKey::predef(*hkey);
+        if let Ok(run_key) = root.open_subkey(path) {
+            for (name, value) in run_key.enum_values().filter_map(|v| v.ok()) {
+                let command: String = match value {
+                    winreg::RegValue { bytes, .. } => {
+                        String::from_utf8_lossy(&bytes).trim_end_matches('\0').to_string()
+                    }
+                };
+
+                let (publisher, is_signed) = get_file_info(&command);
+                let category = if publisher.contains("Microsoft") {
+                    "Microsoft"
+                } else if is_signed {
+                    "Third-party"
+                } else {
+                    "Unknown"
+                };
+                let impact = estimate_impact(&command);
+
+                // Avoid duplicates (same name might appear in multiple locations)
+                if !items.iter().any(|i| i.name == name) {
+                    items.push(StartupItemInfo {
+                        name,
+                        enabled: true,
+                        category: category.to_string(),
+                        impact,
+                    });
+                }
+            }
+        }
+    }
+
+    // Startup folders
+    if let Some(startup_dir) = dirs::data_local_dir() {
+        let user_startup = startup_dir.join("Microsoft\\Windows\\Start Menu\\Programs\\Startup");
+        if user_startup.exists() {
+            if let Ok(entries) = std::fs::read_dir(&user_startup) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map(|e| e == "lnk").unwrap_or(false) {
+                        let name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                        if !items.iter().any(|i| i.name == name) {
+                            items.push(StartupItemInfo {
+                                name,
+                                enabled: true,
+                                category: "Third-party".to_string(),
+                                impact: "Unknown".to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    items
+}
+
 pub fn run(action: &str, name: Option<&str>, show_impact: bool) -> Result<()> {
     theme::print_section_header("Startup Optimizer");
 
