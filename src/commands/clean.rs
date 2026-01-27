@@ -116,7 +116,7 @@ pub fn run(dry_run: bool, categories: &[String], force: bool) -> Result<()> {
             Some(indices) => indices,
             None => {
                 println!();
-                theme::print_warning("Cancelled - no changes made");
+                theme::print_info("Operation cancelled - no changes made");
                 return Ok(());
             }
         }

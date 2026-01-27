@@ -89,7 +89,7 @@ pub fn run_tui() -> Result<()> {
         ];
 
         let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Select an option")
+            .with_prompt("Select an option (Esc to exit)")
             .items(&options)
             .default(0)
             .interact_opt()?;
@@ -99,6 +99,7 @@ pub fn run_tui() -> Result<()> {
                 // System Cleanup
                 term.clear_screen()?;
                 theme::print_command_banner("System Cleanup", icons::CLEANUP, "Clean temp files and caches");
+                theme::print_breadcrumb(&["Main Menu", "System Cleanup"]);
 
                 commands::clean::run(true, &["user".to_string(), "browser".to_string(), "cache".to_string()], false)?;
 
@@ -143,7 +144,7 @@ pub fn run_tui() -> Result<()> {
                     ];
 
                     let mode_selection = Select::with_theme(&ColorfulTheme::default())
-                        .with_prompt("Select analysis mode")
+                        .with_prompt("Select analysis mode (Esc to go back)")
                         .items(&modes)
                         .default(0)
                         .interact_opt()?;
@@ -171,7 +172,7 @@ pub fn run_tui() -> Result<()> {
                             ];
 
                             let path_selection = Select::with_theme(&ColorfulTheme::default())
-                                .with_prompt("Select path to analyze")
+                                .with_prompt("Select path to analyze (Esc to go back)")
                                 .items(&path_options)
                                 .default(0)
                                 .interact_opt()?;
@@ -188,7 +189,7 @@ pub fn run_tui() -> Result<()> {
                                         .default("C:\\".to_string())
                                         .interact_text()?
                                 }
-                                None => continue,
+                                None => continue, // User pressed Esc
                                 _ => "C:\\Users".to_string(),
                             };
 
@@ -205,6 +206,7 @@ pub fn run_tui() -> Result<()> {
                 // System Status
                 term.clear_screen()?;
                 theme::print_command_banner("System Status", icons::STATUS, "Real-time system health");
+                theme::print_breadcrumb(&["Main Menu", "System Status"]);
 
                 commands::status::run(false, 2)?;
 
@@ -226,6 +228,7 @@ pub fn run_tui() -> Result<()> {
                 // Developer Cleanup
                 term.clear_screen()?;
                 theme::print_command_banner("Developer Cleanup", icons::DEV, "Remove build artifacts");
+                theme::print_breadcrumb(&["Main Menu", "Developer Cleanup"]);
 
                 // Common development folder paths
                 let home_dir = dirs::home_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| "C:\\Users".to_string());
@@ -239,7 +242,7 @@ pub fn run_tui() -> Result<()> {
                 ];
 
                 let path_selection = Select::with_theme(&ColorfulTheme::default())
-                    .with_prompt("Select development folder")
+                    .with_prompt("Select development folder (Esc to cancel)")
                     .items(&path_options)
                     .default(0)
                     .interact_opt()?;
@@ -257,7 +260,7 @@ pub fn run_tui() -> Result<()> {
                             .interact_text()?
                     }
                     None => {
-                        wait_for_enter()?;
+                        // User pressed Esc - return to main menu
                         continue;
                     }
                     _ => ".".to_string(),
@@ -319,7 +322,7 @@ pub fn run_tui() -> Result<()> {
                     ];
 
                     let action_selection = Select::with_theme(&ColorfulTheme::default())
-                        .with_prompt("Select action")
+                        .with_prompt("Select action (Esc to go back)")
                         .items(&actions)
                         .default(0)
                         .interact_opt()?;
@@ -353,11 +356,13 @@ pub fn run_tui() -> Result<()> {
                                 }
                                 3 => {
                                     theme::print_command_banner("Package Manager", icons::PACKAGE, "Select packages to update");
-                                    commands::winget::run("update-interactive", None, false)?;
+                                    // Call the actual update function with interactive selection
+                                    commands::winget::run("update", None, false)?;
                                 }
                                 4 => {
                                     theme::print_command_banner("Package Manager", icons::PACKAGE, "Uninstall package");
-                                    commands::winget::run("uninstall-interactive", None, false)?;
+                                    // Call the actual uninstall function with interactive selection
+                                    commands::winget::run("uninstall", None, false)?;
                                 }
                                 5 => {
                                     theme::print_command_banner("Package Manager", icons::PACKAGE, "Search packages");
@@ -400,7 +405,7 @@ pub fn run_tui() -> Result<()> {
                     ];
 
                     let action_selection = Select::with_theme(&ColorfulTheme::default())
-                        .with_prompt("Select scan type")
+                        .with_prompt("Select scan type (Esc to go back)")
                         .items(&actions)
                         .default(0)
                         .interact_opt()?;
@@ -448,7 +453,7 @@ pub fn run_tui() -> Result<()> {
                     ];
 
                     let action_selection = Select::with_theme(&ColorfulTheme::default())
-                        .with_prompt("Select action")
+                        .with_prompt("Select action (Esc to go back)")
                         .items(&actions)
                         .default(0)
                         .interact_opt()?;
@@ -593,7 +598,7 @@ pub fn run_tui() -> Result<()> {
                     ];
 
                     let action_selection = Select::with_theme(&ColorfulTheme::default())
-                        .with_prompt("Select diagnostic")
+                        .with_prompt("Select diagnostic (Esc to go back)")
                         .items(&actions)
                         .default(0)
                         .interact_opt()?;
@@ -630,6 +635,7 @@ pub fn run_tui() -> Result<()> {
                 // Quick Scan
                 term.clear_screen()?;
                 theme::print_command_banner("Quick Scan", icons::QUICK, "Fast system health check");
+                theme::print_breadcrumb(&["Main Menu", "Quick Scan"]);
                 commands::quick_scan()?;
                 wait_for_enter()?;
             }
@@ -663,7 +669,7 @@ pub fn run_tui() -> Result<()> {
                     ];
 
                     let action_selection = Select::with_theme(&ColorfulTheme::default())
-                        .with_prompt("Select optimization category")
+                        .with_prompt("Select optimization category (Esc to go back)")
                         .items(&actions)
                         .default(0)
                         .interact_opt()?;
@@ -758,7 +764,7 @@ fn run_profiles_menu(term: &Term) -> Result<()> {
         options.push(format!("{} {} Back to Performance Menu", style("[B]").yellow().bold(), icons::BACK));
 
         let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Select a profile")
+            .with_prompt("Select a profile (Esc to go back)")
             .items(&options)
             .default(0)
             .interact_opt()?;
@@ -861,7 +867,7 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
         options.push(format!("{} {} Back", style("[B]").yellow().bold(), icons::BACK));
 
         let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Select a tweak to toggle")
+            .with_prompt("Select a tweak to toggle (Esc to go back)")
             .items(&options)
             .default(0)
             .interact_opt()?;
@@ -995,7 +1001,7 @@ fn run_debloat_menu(term: &Term) -> Result<()> {
         ];
 
         let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Select action")
+            .with_prompt("Select action (Esc to go back)")
             .items(&options)
             .default(0)
             .interact_opt()?;
@@ -1063,6 +1069,7 @@ fn run_debloat_menu(term: &Term) -> Result<()> {
     Ok(())
 }
 
+/// Wait for user to press Enter to continue
 fn wait_for_enter() -> Result<()> {
     println!();
     print_menu_footer();
@@ -1074,4 +1081,10 @@ fn wait_for_enter() -> Result<()> {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
     Ok(())
+}
+
+/// Print a consistent cancellation message
+fn print_cancelled() {
+    println!();
+    theme::print_info("Operation cancelled");
 }

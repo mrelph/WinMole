@@ -194,7 +194,7 @@ fn update_packages(package: Option<&str>, all: bool) -> Result<()> {
 
         if let Some(indices) = selections {
             if indices.is_empty() {
-                println!("  No packages selected");
+                theme::print_info("No packages selected");
                 return Ok(());
             }
 
@@ -214,7 +214,7 @@ fn update_packages(package: Option<&str>, all: bool) -> Result<()> {
                 }
             }
         } else {
-            println!("  Cancelled");
+            theme::print_info("Operation cancelled");
         }
     }
 
@@ -363,10 +363,10 @@ fn uninstall_package(package: Option<&str>) -> Result<()> {
                     print_error(&format!("Failed to uninstall {}", name));
                 }
             } else {
-                println!("  Cancelled");
+                theme::print_info("Operation cancelled");
             }
         } else {
-            println!("  Cancelled");
+            theme::print_info("Operation cancelled");
         }
     }
 

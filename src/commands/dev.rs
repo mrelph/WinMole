@@ -262,14 +262,14 @@ pub fn run(path: &str, types: &[String], older_than: Option<u32>, dry_run: bool,
             match selections {
                 Some(indices) => indices,
                 None => {
-                    println!("  Cancelled");
+                    theme::print_info("Operation cancelled");
                     return Ok(());
                 }
             }
         };
 
         if selected_indices.is_empty() {
-            println!("  No items selected");
+            theme::print_info("No items selected");
             return Ok(());
         }
 
