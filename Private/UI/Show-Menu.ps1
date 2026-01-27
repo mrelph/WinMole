@@ -105,7 +105,12 @@ function Show-Menu {
                     if ($selected.Action) {
                         & $selected.Action
                     }
-                    return if ($selected.Value) { $selected.Value } else { $selected.Name }
+
+                    if ($selected.Value) {
+                        return $selected.Value
+                    } else {
+                        return $selected.Name
+                    }
                 }
                 'Q' {
                     [Console]::CursorVisible = $cursorVisible
