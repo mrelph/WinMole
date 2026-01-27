@@ -44,6 +44,7 @@ pub fn run_tui() -> Result<()> {
             "Package Manager     - Manage installed applications with winget",
             "Registry Cleaner    - Scan and clean orphaned registry entries",
             "Startup Optimizer   - Manage startup programs and boot performance",
+            "System Diagnostics  - Analyze processes, memory, and services",
             "Quick Scan          - Run a quick system health check",
             "Exit                - Exit WinMole",
         ];
@@ -278,13 +279,43 @@ pub fn run_tui() -> Result<()> {
             }
 
             Some(7) => {
+                // System Diagnostics
+                term.clear_screen()?;
+
+                let actions = vec![
+                    "Process Analysis    - Find high CPU/memory processes",
+                    "Memory Analysis     - Detailed memory breakdown",
+                    "Service Analysis    - Check Windows services",
+                    "Run All Diagnostics",
+                ];
+
+                let action_selection = Select::with_theme(&ColorfulTheme::default())
+                    .with_prompt("Select diagnostic")
+                    .items(&actions)
+                    .default(3)
+                    .interact_opt()?;
+
+                if let Some(action_idx) = action_selection {
+                    term.clear_screen()?;
+                    match action_idx {
+                        0 => commands::diagnose::run("processes")?,
+                        1 => commands::diagnose::run("memory")?,
+                        2 => commands::diagnose::run("services")?,
+                        _ => commands::diagnose::run("all")?,
+                    }
+                }
+
+                wait_for_enter()?;
+            }
+
+            Some(8) => {
                 // Quick Scan
                 term.clear_screen()?;
                 commands::quick_scan()?;
                 wait_for_enter()?;
             }
 
-            Some(8) | None => {
+            Some(9) | None => {
                 // Exit
                 term.clear_screen()?;
                 println!();

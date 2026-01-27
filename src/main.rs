@@ -136,6 +136,13 @@ enum Commands {
         #[arg(long)]
         impact: bool,
     },
+
+    /// Diagnose system performance issues
+    Diagnose {
+        /// Action: processes, memory, services, all
+        #[arg(default_value = "all")]
+        action: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -194,6 +201,10 @@ fn main() -> Result<()> {
 
         Commands::Startup { action, name, impact } => {
             commands::startup::run(&action, name.as_deref(), impact)
+        }
+
+        Commands::Diagnose { action } => {
+            commands::diagnose::run(&action)
         }
     }
 }
