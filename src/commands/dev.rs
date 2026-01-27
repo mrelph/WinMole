@@ -1,6 +1,6 @@
 use anyhow::Result;
 use console::style;
-use dialoguer::Confirm;
+use dialoguer::{theme::ColorfulTheme, MultiSelect};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
 use std::fs;
@@ -228,51 +228,93 @@ pub fn run(path: &str, types: &[String], older_than: Option<u32>, dry_run: bool,
 
     // Delete if not dry run
     if !dry_run {
-        let should_delete = if force {
-            true
+        // Sort by size descending for selection
+        found_artifacts.sort_by(|a, b| b.2.cmp(&a.2));
+
+        // Build display items
+        let display_items: Vec<String> = found_artifacts.iter().map(|(p, t, s)| {
+            let relative = p.strip_prefix(&path).unwrap_or(p);
+            let age = get_age_days(p);
+            format!("{:<12} {:>10} {:>4}d  {}",
+                t,
+                format_size(*s),
+                age,
+                relative.display()
+            )
+        }).collect();
+
+        // Select which to delete
+        let selected_indices: Vec<usize> = if force {
+            (0..found_artifacts.len()).collect()
         } else {
-            Confirm::new()
-                .with_prompt(format!("Delete {} folders ({})?", total_count, format_size(total_size)))
-                .default(false)
-                .interact()?
+            // Pre-select large items (> 100MB)
+            let defaults: Vec<bool> = found_artifacts.iter()
+                .map(|(_, _, s)| *s > 100 * 1024 * 1024)
+                .collect();
+
+            let selections = MultiSelect::with_theme(&ColorfulTheme::default())
+                .with_prompt("Select folders to delete (Space to toggle, Enter to confirm)")
+                .items(&display_items)
+                .defaults(&defaults)
+                .interact_opt()?;
+
+            match selections {
+                Some(indices) => indices,
+                None => {
+                    println!("  Cancelled");
+                    return Ok(());
+                }
+            }
         };
 
-        if should_delete {
-            println!();
-            let pb = ProgressBar::new(total_count as u64);
-            pb.set_style(ProgressStyle::default_bar()
-                .template("{spinner} [{bar:40}] {pos}/{len} {msg}")?);
+        if selected_indices.is_empty() {
+            println!("  No items selected");
+            return Ok(());
+        }
 
-            let mut deleted_count = 0;
-            let mut deleted_size: u64 = 0;
-            let mut error_count = 0;
+        let selected_size: u64 = selected_indices.iter()
+            .map(|&i| found_artifacts[i].2)
+            .sum();
 
-            for (artifact_path, _, size) in &found_artifacts {
-                pb.set_message(format!("Deleting: {}", artifact_path.file_name().unwrap_or_default().to_string_lossy()));
+        println!();
+        println!("  Deleting {} folders ({})...",
+            style(selected_indices.len()).cyan(),
+            style(format_size(selected_size)).yellow()
+        );
+        println!();
 
-                match fs::remove_dir_all(artifact_path) {
-                    Ok(_) => {
-                        deleted_count += 1;
-                        deleted_size += size;
-                    }
-                    Err(_) => {
-                        error_count += 1;
-                    }
+        let pb = ProgressBar::new(selected_indices.len() as u64);
+        pb.set_style(ProgressStyle::default_bar()
+            .template("{spinner} [{bar:40}] {pos}/{len} {msg}")?);
+
+        let mut deleted_count = 0;
+        let mut deleted_size: u64 = 0;
+        let mut error_count = 0;
+
+        for &idx in &selected_indices {
+            let (artifact_path, _, size) = &found_artifacts[idx];
+            pb.set_message(format!("Deleting: {}", artifact_path.file_name().unwrap_or_default().to_string_lossy()));
+
+            match fs::remove_dir_all(artifact_path) {
+                Ok(_) => {
+                    deleted_count += 1;
+                    deleted_size += *size;
                 }
-
-                pb.inc(1);
+                Err(_) => {
+                    error_count += 1;
+                }
             }
 
-            pb.finish_and_clear();
+            pb.inc(1);
+        }
 
-            println!();
-            print_success(&format!("Deleted {} folders, freed {}", deleted_count, format_size(deleted_size)));
+        pb.finish_and_clear();
 
-            if error_count > 0 {
-                print_warning(&format!("{} folders could not be deleted (may be in use)", error_count));
-            }
-        } else {
-            println!("  Cleanup cancelled");
+        println!();
+        print_success(&format!("Deleted {} folders, freed {}", deleted_count, format_size(deleted_size)));
+
+        if error_count > 0 {
+            print_warning(&format!("{} folders could not be deleted (may be in use)", error_count));
         }
     } else {
         println!("  Run without {} to delete artifacts", style("--dry-run").cyan());

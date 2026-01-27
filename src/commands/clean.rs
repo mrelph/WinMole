@@ -1,7 +1,6 @@
 use anyhow::Result;
 use console::style;
-use dialoguer::Confirm;
-use indicatif::{ProgressBar, ProgressStyle};
+use dialoguer::{theme::ColorfulTheme, MultiSelect};
 use std::fs;
 use std::path::PathBuf;
 
@@ -11,24 +10,14 @@ use crate::system::cleanup::{get_temp_folders, get_browser_caches, CleanupTarget
 pub fn run(dry_run: bool, categories: &[String], force: bool) -> Result<()> {
     print_header("WinMole System Cleanup");
 
-    if dry_run {
-        print_warning("Running in DRY RUN mode - no files will be deleted");
-        println!();
-    }
-
-    let mut total_size: u64 = 0;
-    let mut total_files: u64 = 0;
-    let mut total_errors: u64 = 0;
-
+    // Gather all cleanup targets
+    let mut all_targets: Vec<CleanupTarget> = Vec::new();
     let all_categories = categories.iter().any(|c| c.to_lowercase() == "all");
 
-    // Process each category
     for category in &["user", "system", "browser", "windows", "cache"] {
         if !all_categories && !categories.iter().any(|c| c.to_lowercase() == *category) {
             continue;
         }
-
-        println!("  {}", style(format!("Cleaning: {}", category)).cyan().bold());
 
         let targets: Vec<CleanupTarget> = match *category {
             "browser" => get_browser_caches()?,
@@ -36,106 +25,146 @@ pub fn run(dry_run: bool, categories: &[String], force: bool) -> Result<()> {
         };
 
         for target in targets {
-            if !target.path.exists() {
-                continue;
+            if target.path.exists() && target.size > 0 {
+                // Skip admin-required targets if not elevated
+                if target.requires_admin && !is_elevated() {
+                    continue;
+                }
+                all_targets.push(target);
             }
+        }
+    }
 
-            // Skip admin-required targets if not elevated
-            if target.requires_admin && !is_elevated() {
-                println!("    {} {} - {}",
-                    style("✗").red(),
-                    target.name,
-                    style("Requires admin").red()
-                );
-                continue;
+    if all_targets.is_empty() {
+        print_success("Nothing to clean - system is already clean!");
+        println!();
+        return Ok(());
+    }
+
+    // Sort by size descending
+    all_targets.sort_by(|a, b| b.size.cmp(&a.size));
+
+    // Calculate total
+    let total_available: u64 = all_targets.iter().map(|t| t.size).sum();
+    println!("  Found {} cleanable targets ({} total)",
+        style(all_targets.len()).cyan(),
+        style(format_size(total_available)).yellow().bold()
+    );
+    println!();
+
+    // Build display items for selection
+    let display_items: Vec<String> = all_targets.iter().map(|t| {
+        let size_str = format_size(t.size);
+        let file_info = t.file_count.map(|c| format!(" ({} files)", c)).unwrap_or_default();
+        format!("{:<30} {:>10}{}", t.name, size_str, file_info)
+    }).collect();
+
+    // If force mode, select all; otherwise show interactive selection
+    let selected_indices: Vec<usize> = if force {
+        (0..all_targets.len()).collect()
+    } else {
+        // Pre-select items over 10MB
+        let defaults: Vec<bool> = all_targets.iter()
+            .map(|t| t.size > 10 * 1024 * 1024)
+            .collect();
+
+        let selections = MultiSelect::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select items to clean (Space to toggle, Enter to confirm)")
+            .items(&display_items)
+            .defaults(&defaults)
+            .interact_opt()?;
+
+        match selections {
+            Some(indices) => indices,
+            None => {
+                println!("  Cancelled");
+                return Ok(());
             }
+        }
+    };
 
-            let size_str = format_size(target.size);
-            let file_count = target.file_count.unwrap_or(0);
-            let icon = if target.size > 100 * 1024 * 1024 { "⚠" } else { "●" };
+    if selected_indices.is_empty() {
+        println!("  No items selected");
+        return Ok(());
+    }
 
-            // Show target name and size
-            if target.size > 100 * 1024 * 1024 {
-                println!("    {} {} - {}", style(icon).yellow(), style(&target.name).white().bold(), style(&size_str).yellow().bold());
-            } else if target.size > 0 {
-                println!("    {} {} - {}", style(icon).dim(), target.name, style(&size_str).dim());
-            } else {
-                println!("    {} {} - {}", style("○").dim(), style(&target.name).dim(), style("empty").dim());
-                continue;
-            }
+    // Calculate selected size
+    let selected_size: u64 = selected_indices.iter()
+        .map(|&i| all_targets[i].size)
+        .sum();
 
-            // Show path
-            println!("      Path: {}", style(target.path.display()).dim());
+    println!();
+    println!("  Selected {} items ({})",
+        style(selected_indices.len()).cyan(),
+        style(format_size(selected_size)).yellow().bold()
+    );
+    println!();
 
-            // Show description
-            println!("      {}", style(&target.description).dim());
+    if dry_run {
+        print_warning("DRY RUN - showing what would be deleted:");
+        println!();
 
-            // Show file count if available
-            if file_count > 0 {
-                println!("      Files: {}", style(file_count).cyan());
-            }
+        for &idx in &selected_indices {
+            let target = &all_targets[idx];
+            println!("  {} {} - {}",
+                style("→").cyan(),
+                target.name,
+                style(format_size(target.size)).dim()
+            );
+            println!("    {}", style(target.path.display()).dim());
 
-            // Show sample of large files in this target (top 5)
+            // Show large files
             if target.size > 10 * 1024 * 1024 && !target.is_file {
-                let large_files = get_large_files(&target.path, 5);
-                if !large_files.is_empty() {
-                    println!("      {} Largest files:", style("→").dim());
-                    for (path, size) in large_files {
-                        let file_name = path.file_name()
-                            .map(|n| n.to_string_lossy().to_string())
-                            .unwrap_or_else(|| "unknown".to_string());
-                        let truncated_name = if file_name.len() > 40 {
-                            format!("{}...", &file_name[..37])
-                        } else {
-                            file_name
-                        };
-                        println!("        {} ({})", style(truncated_name).dim(), format_size(size));
-                    }
+                let large_files = get_large_files(&target.path, 3);
+                for (path, size) in large_files {
+                    let file_name = path.file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    println!("      {} ({})", style(&file_name).dim(), format_size(size));
                 }
-            }
-
-            println!();
-
-            if !dry_run {
-                match clean_target(&target) {
-                    Ok(cleaned) => {
-                        total_size += cleaned.0;
-                        total_files += cleaned.1;
-                    }
-                    Err(_) => {
-                        total_errors += 1;
-                    }
-                }
-            } else {
-                total_size += target.size;
-                total_files += target.file_count.unwrap_or(1);
             }
         }
 
         println!();
+        println!("  Run without {} to perform cleanup", style("--dry-run").cyan());
+        return Ok(());
+    }
+
+    // Perform cleanup
+    let mut total_cleaned: u64 = 0;
+    let mut total_files: u64 = 0;
+    let mut total_errors: u64 = 0;
+
+    for &idx in &selected_indices {
+        let target = &all_targets[idx];
+        print!("  Cleaning {}... ", target.name);
+
+        match clean_target(target) {
+            Ok((size, files)) => {
+                println!("{} ({})", style("✓").green(), format_size(size));
+                total_cleaned += size;
+                total_files += files;
+            }
+            Err(e) => {
+                println!("{} ({})", style("✗").red(), e);
+                total_errors += 1;
+            }
+        }
     }
 
     // Summary
+    println!();
     print_header("Cleanup Summary");
 
-    let action_word = if dry_run { "Would free" } else { "Freed" };
-    let summary_color = if dry_run { style(format_size(total_size)).yellow().bold() } else { style(format_size(total_size)).green().bold() };
-
-    println!("  {}: {}", action_word, summary_color);
-    println!("  Items processed: {}", style(total_files).cyan());
+    println!("  Freed: {}", style(format_size(total_cleaned)).green().bold());
+    println!("  Items deleted: {}", style(total_files).cyan());
 
     if total_errors > 0 {
         println!("  Errors: {}", style(total_errors).red());
     }
 
     println!();
-
-    if dry_run {
-        println!("  Run without {} to perform cleanup", style("--dry-run").cyan());
-    } else {
-        print_success("Cleanup complete!");
-    }
-
+    print_success("Cleanup complete!");
     println!();
 
     Ok(())
