@@ -1,4 +1,5 @@
 mod commands;
+mod config;
 mod system;
 mod ui;
 
@@ -143,6 +144,40 @@ enum Commands {
         #[arg(default_value = "all")]
         action: String,
     },
+
+    /// Optimize system performance
+    Optimize {
+        /// Action: list, status, apply, revert
+        #[arg(short, long, default_value = "list")]
+        action: String,
+
+        /// Category filter: performance, privacy, network, memory, hardware, ui
+        #[arg(short, long)]
+        category: Option<String>,
+
+        /// Profile to apply/revert: gaming, workstation, balanced
+        #[arg(short, long)]
+        profile: Option<String>,
+
+        /// Preview without applying changes
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+    },
+
+    /// Remove Windows bloatware
+    Debloat {
+        /// Action: scan, list, remove, remove-safe
+        #[arg(default_value = "scan")]
+        action: String,
+
+        /// App name for removal (for 'remove' action)
+        #[arg(short, long)]
+        app: Option<String>,
+
+        /// Preview without removing
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -205,6 +240,14 @@ fn main() -> Result<()> {
 
         Commands::Diagnose { action } => {
             commands::diagnose::run(&action)
+        }
+
+        Commands::Optimize { action, category, profile, dry_run } => {
+            commands::optimize::run(&action, category.as_deref(), profile.as_deref(), dry_run)
+        }
+
+        Commands::Debloat { action, app, dry_run } => {
+            commands::optimize::debloat::run(&action, app.as_deref(), dry_run)
         }
     }
 }

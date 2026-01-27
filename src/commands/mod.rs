@@ -2,6 +2,7 @@ pub mod clean;
 pub mod dev;
 pub mod diagnose;
 pub mod disk;
+pub mod optimize;
 pub mod registry;
 pub mod startup;
 pub mod status;

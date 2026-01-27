@@ -2,7 +2,7 @@ pub mod theme;
 
 use anyhow::Result;
 use console::{style, Term};
-use dialoguer::{theme::ColorfulTheme, Select};
+use dialoguer::{theme::ColorfulTheme, Select, MultiSelect};
 
 use crate::commands;
 use theme::{icons, boxes, print_menu_footer};
@@ -82,6 +82,8 @@ pub fn run_tui() -> Result<()> {
                 style("[8]").cyan().bold(), icons::DIAGNOSE),
             format!("{} {} Quick Scan          - Run quick health check",
                 style("[9]").cyan().bold(), icons::QUICK),
+            format!("{} {} Performance         - Optimize system performance",
+                style("[0]").cyan().bold(), icons::PERFORMANCE),
             format!("{} {} Exit                - Exit WinMole",
                 style("[Q]").red().bold(), icons::EXIT),
         ];
@@ -465,14 +467,14 @@ pub fn run_tui() -> Result<()> {
                                     commands::startup::run("analyze", None, false)?;
                                 }
                                 2 => {
-                                    theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Disable startup item");
+                                    theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Disable startup items");
                                     let items = commands::startup::get_startup_items();
                                     let enabled_items: Vec<_> = items.iter().filter(|i| i.enabled).collect();
 
                                     if enabled_items.is_empty() {
                                         theme::print_warning("No enabled startup items found");
                                     } else {
-                                        let mut options: Vec<String> = enabled_items.iter()
+                                        let options: Vec<String> = enabled_items.iter()
                                             .map(|i| {
                                                 let impact_str = match i.impact.as_str() {
                                                     "High" => format!("{}", style("High").red()),
@@ -483,31 +485,45 @@ pub fn run_tui() -> Result<()> {
                                                 format!("{:<30} {} - {}", i.name, i.category, impact_str)
                                             })
                                             .collect();
-                                        options.push(format!("{} Cancel", icons::BACK));
 
-                                        let selection = Select::with_theme(&ColorfulTheme::default())
-                                            .with_prompt("Select item to disable")
+                                        println!();
+                                        println!("  {} Use {} to move, {} to select/deselect, {} to confirm",
+                                            style("Tip:").cyan(),
+                                            style("↑↓").white().bold(),
+                                            style("Space").white().bold(),
+                                            style("Enter").white().bold()
+                                        );
+                                        println!();
+
+                                        let selections = MultiSelect::with_theme(&ColorfulTheme::default())
+                                            .with_prompt("Select items to disable (Space to toggle, Enter to confirm)")
                                             .items(&options)
-                                            .default(0)
                                             .interact_opt()?;
 
-                                        if let Some(idx) = selection {
-                                            if idx < enabled_items.len() {
-                                                let name = &enabled_items[idx].name;
-                                                commands::startup::run("disable", Some(name), false)?;
-                                                theme::print_success(&format!("Disabled: {}", name));
+                                        if let Some(indices) = selections {
+                                            if indices.is_empty() {
+                                                theme::print_warning("No items selected");
+                                            } else {
+                                                for idx in &indices {
+                                                    let name = &enabled_items[*idx].name;
+                                                    commands::startup::run("disable", Some(name), false)?;
+                                                    theme::print_success(&format!("Disabled: {}", name));
+                                                }
+                                                println!();
+                                                theme::print_success(&format!("Disabled {} item(s)", indices.len()));
                                             }
                                         }
                                     }
                                 }
                                 3 => {
-                                    theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Enable startup item");
+                                    theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Enable startup items");
                                     let items = commands::startup::get_startup_items();
-                                    let disabled_items: Vec<_> = items.iter().filter(|i| !i.enabled).collect();
 
-                                    if disabled_items.is_empty() {
+                                    if items.is_empty() {
+                                        theme::print_warning("No startup items found");
+                                    } else {
                                         // Show all items since we can't easily detect disabled state from registry
-                                        let mut options: Vec<String> = items.iter()
+                                        let options: Vec<String> = items.iter()
                                             .map(|i| {
                                                 let impact_str = match i.impact.as_str() {
                                                     "High" => format!("{}", style("High").red()),
@@ -518,38 +534,32 @@ pub fn run_tui() -> Result<()> {
                                                 format!("{:<30} {} - {}", i.name, i.category, impact_str)
                                             })
                                             .collect();
-                                        options.push(format!("{} Cancel", icons::BACK));
 
-                                        let selection = Select::with_theme(&ColorfulTheme::default())
-                                            .with_prompt("Select item to enable")
+                                        println!();
+                                        println!("  {} Use {} to move, {} to select/deselect, {} to confirm",
+                                            style("Tip:").cyan(),
+                                            style("↑↓").white().bold(),
+                                            style("Space").white().bold(),
+                                            style("Enter").white().bold()
+                                        );
+                                        println!();
+
+                                        let selections = MultiSelect::with_theme(&ColorfulTheme::default())
+                                            .with_prompt("Select items to enable (Space to toggle, Enter to confirm)")
                                             .items(&options)
-                                            .default(0)
                                             .interact_opt()?;
 
-                                        if let Some(idx) = selection {
-                                            if idx < items.len() {
-                                                let name = &items[idx].name;
-                                                commands::startup::run("enable", Some(name), false)?;
-                                                theme::print_success(&format!("Enabled: {}", name));
-                                            }
-                                        }
-                                    } else {
-                                        let mut options: Vec<String> = disabled_items.iter()
-                                            .map(|i| format!("{:<30} {}", i.name, i.category))
-                                            .collect();
-                                        options.push(format!("{} Cancel", icons::BACK));
-
-                                        let selection = Select::with_theme(&ColorfulTheme::default())
-                                            .with_prompt("Select item to enable")
-                                            .items(&options)
-                                            .default(0)
-                                            .interact_opt()?;
-
-                                        if let Some(idx) = selection {
-                                            if idx < disabled_items.len() {
-                                                let name = &disabled_items[idx].name;
-                                                commands::startup::run("enable", Some(name), false)?;
-                                                theme::print_success(&format!("Enabled: {}", name));
+                                        if let Some(indices) = selections {
+                                            if indices.is_empty() {
+                                                theme::print_warning("No items selected");
+                                            } else {
+                                                for idx in &indices {
+                                                    let name = &items[*idx].name;
+                                                    commands::startup::run("enable", Some(name), false)?;
+                                                    theme::print_success(&format!("Enabled: {}", name));
+                                                }
+                                                println!();
+                                                theme::print_success(&format!("Enabled {} item(s)", indices.len()));
                                             }
                                         }
                                     }
@@ -624,7 +634,87 @@ pub fn run_tui() -> Result<()> {
                 wait_for_enter()?;
             }
 
-            Some(9) | None => {
+            Some(9) => {
+                // Performance Optimization - submenu loop
+                loop {
+                    term.clear_screen()?;
+                    theme::print_command_banner("Performance Optimization", icons::PERFORMANCE, "Optimize system performance");
+                    theme::print_breadcrumb(&["Main Menu", "Performance"]);
+
+                    let actions = vec![
+                        format!("{} {} Performance Profiles   - Gaming/Workstation/Balanced",
+                            style("[1]").cyan().bold(), icons::PERFORMANCE),
+                        format!("{} {} Privacy & Telemetry    - Disable data collection",
+                            style("[2]").cyan().bold(), icons::PRIVACY),
+                        format!("{} {} Network Optimization   - Reduce latency",
+                            style("[3]").cyan().bold(), icons::NETWORK),
+                        format!("{} {} App Debloater          - Remove bloatware",
+                            style("[4]").cyan().bold(), icons::DEBLOAT),
+                        format!("{} {} Memory & Storage       - SysMain, NTFS tweaks",
+                            style("[5]").cyan().bold(), icons::MEMORY),
+                        format!("{} {} UI Responsiveness      - Menu delays, timeouts",
+                            style("[6]").cyan().bold(), icons::QUICK),
+                        format!("{} {} Hardware Tweaks        - Advanced (use caution)",
+                            style("[7]").cyan().bold(), icons::HARDWARE),
+                        format!("{} {} View Applied Tweaks    - Show current modifications",
+                            style("[8]").cyan().bold(), icons::INFO),
+                        format!("{} {} Back to Main Menu",
+                            style("[B]").yellow().bold(), icons::BACK),
+                    ];
+
+                    let action_selection = Select::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Select optimization category")
+                        .items(&actions)
+                        .default(0)
+                        .interact_opt()?;
+
+                    match action_selection {
+                        Some(8) | None => break,
+                        Some(action_idx) => {
+                            term.clear_screen()?;
+                            match action_idx {
+                                0 => {
+                                    // Performance Profiles
+                                    run_profiles_menu(&term)?;
+                                }
+                                1 => {
+                                    // Privacy & Telemetry
+                                    run_category_menu(&term, "Privacy & Telemetry", icons::PRIVACY, "privacy")?;
+                                }
+                                2 => {
+                                    // Network Optimization
+                                    run_category_menu(&term, "Network Optimization", icons::NETWORK, "network")?;
+                                }
+                                3 => {
+                                    // App Debloater
+                                    run_debloat_menu(&term)?;
+                                }
+                                4 => {
+                                    // Memory & Storage
+                                    run_category_menu(&term, "Memory & Storage", icons::MEMORY, "memory")?;
+                                }
+                                5 => {
+                                    // UI Responsiveness
+                                    run_category_menu(&term, "UI Responsiveness", icons::QUICK, "ui")?;
+                                }
+                                6 => {
+                                    // Hardware Tweaks
+                                    run_category_menu(&term, "Hardware Tweaks", icons::HARDWARE, "hardware")?;
+                                }
+                                7 => {
+                                    // View Applied Tweaks
+                                    theme::print_command_banner("Applied Tweaks", icons::INFO, "Currently applied modifications");
+                                    commands::optimize::run("status", None, None, false)?;
+                                    wait_for_enter()?;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+
+            Some(10) | None => {
                 // Exit
                 term.clear_screen()?;
                 println!();
@@ -646,6 +736,327 @@ pub fn run_tui() -> Result<()> {
             }
 
             _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+/// Run the performance profiles submenu
+fn run_profiles_menu(term: &Term) -> Result<()> {
+    use commands::optimize::profiles::get_profiles;
+
+    loop {
+        term.clear_screen()?;
+        theme::print_command_banner("Performance Profiles", icons::PERFORMANCE, "Apply optimized settings for your use case");
+        theme::print_breadcrumb(&["Main Menu", "Performance", "Profiles"]);
+
+        let profiles = get_profiles();
+        let mut options: Vec<String> = profiles.iter().map(|p| {
+            format!("{} {} - {}", style(&p.name).white().bold(), style(format!("({} tweaks)", p.tweak_ids.len())).dim(), p.description)
+        }).collect();
+        options.push(format!("{} {} Back to Performance Menu", style("[B]").yellow().bold(), icons::BACK));
+
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select a profile")
+            .items(&options)
+            .default(0)
+            .interact_opt()?;
+
+        match selection {
+            Some(idx) if idx < profiles.len() => {
+                let profile = &profiles[idx];
+
+                term.clear_screen()?;
+                theme::print_command_banner(&format!("{} Profile", profile.name), icons::PERFORMANCE, &profile.description);
+
+                // Show what tweaks will be applied
+                println!("  {} This profile will apply the following tweaks:", style(icons::INFO).cyan());
+                println!();
+                for tweak_id in &profile.tweak_ids {
+                    println!("    {} {}", style(icons::BULLET).cyan(), tweak_id);
+                }
+                println!();
+
+                // First do a dry run
+                commands::optimize::run("apply", None, Some(&profile.id), true)?;
+
+                println!();
+                let proceed = dialoguer::Confirm::new()
+                    .with_prompt("Apply this profile?")
+                    .default(false)
+                    .interact()?;
+
+                if proceed {
+                    // Check for admin
+                    if !commands::optimize::is_elevated() {
+                        theme::print_warning("Some tweaks require administrator privileges.");
+                        theme::print_info("Please restart WinMole as Administrator for full functionality.");
+                        wait_for_enter()?;
+                        continue;
+                    }
+
+                    term.clear_screen()?;
+                    theme::print_command_banner(&format!("{} Profile", profile.name), icons::PERFORMANCE, "Applying tweaks...");
+                    commands::optimize::run("apply", None, Some(&profile.id), false)?;
+                    theme::print_success_animation(&format!("{} profile applied successfully!", profile.name));
+                }
+
+                wait_for_enter()?;
+            }
+            _ => break,
+        }
+    }
+
+    Ok(())
+}
+
+/// Run a category-specific tweak menu
+fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Result<()> {
+    use commands::optimize::{TweakRegistry, TweakExecutor};
+    use commands::optimize::common::TweakCategory;
+
+    let registry = TweakRegistry::new();
+    let executor = TweakExecutor::new(false);
+
+    let tweak_category = match category {
+        "privacy" => TweakCategory::Privacy,
+        "network" => TweakCategory::Network,
+        "memory" => TweakCategory::Memory,
+        "hardware" => TweakCategory::Hardware,
+        "ui" => TweakCategory::UIResponsiveness,
+        _ => return Ok(()),
+    };
+
+    loop {
+        term.clear_screen()?;
+        theme::print_command_banner(title, icon, &format!("{} tweaks", category));
+        theme::print_breadcrumb(&["Main Menu", "Performance", title]);
+
+        let tweaks = registry.by_category(tweak_category);
+
+        if tweaks.is_empty() {
+            theme::print_info("No tweaks available in this category.");
+            wait_for_enter()?;
+            break;
+        }
+
+        let mut options: Vec<String> = tweaks.iter().map(|t| {
+            let state = executor.detect_state(t).unwrap_or(commands::optimize::common::TweakState::Unknown);
+            let state_indicator = match state {
+                commands::optimize::common::TweakState::Applied => style("[ON]").green(),
+                commands::optimize::common::TweakState::NotApplied => style("[OFF]").dim(),
+                commands::optimize::common::TweakState::PartiallyApplied => style("[PARTIAL]").yellow(),
+                commands::optimize::common::TweakState::Unknown => style("[?]").red(),
+            };
+            let risk_indicator = match t.risk {
+                commands::optimize::common::TweakRisk::Safe => style("[Safe]").green(),
+                commands::optimize::common::TweakRisk::Moderate => style("[Mod]").yellow(),
+                commands::optimize::common::TweakRisk::Risky => style("[Risk]").red(),
+                commands::optimize::common::TweakRisk::Dangerous => style("[DANGER]").red().bold(),
+            };
+            format!("{} {} {} - {}", state_indicator, risk_indicator, t.name, style(&t.description).dim())
+        }).collect();
+        options.push(format!("{} Apply All Safe Tweaks", style("[A]").cyan().bold()));
+        options.push(format!("{} {} Back", style("[B]").yellow().bold(), icons::BACK));
+
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select a tweak to toggle")
+            .items(&options)
+            .default(0)
+            .interact_opt()?;
+
+        match selection {
+            Some(idx) if idx < tweaks.len() => {
+                let tweak = tweaks[idx];
+                let state = executor.detect_state(tweak).unwrap_or(commands::optimize::common::TweakState::Unknown);
+
+                term.clear_screen()?;
+                theme::print_command_banner(&tweak.name, icon, &tweak.description);
+
+                // Show tweak details
+                println!("  {} Risk Level: {}", style(icons::INFO).cyan(), tweak.risk);
+                println!("  {} Requires Admin: {}", style(icons::INFO).cyan(), if tweak.needs_admin() { "Yes" } else { "No" });
+                println!("  {} Requires Restart: {}", style(icons::INFO).cyan(), if tweak.requires_restart { "Yes" } else { "No" });
+                println!("  {} Current State: {}", style(icons::INFO).cyan(), state);
+                println!();
+
+                let action = if state == commands::optimize::common::TweakState::Applied {
+                    "Revert"
+                } else {
+                    "Apply"
+                };
+
+                let proceed = dialoguer::Confirm::new()
+                    .with_prompt(&format!("{} this tweak?", action))
+                    .default(false)
+                    .interact()?;
+
+                if proceed {
+                    if tweak.needs_admin() && !commands::optimize::is_elevated() {
+                        theme::print_warning("This tweak requires administrator privileges.");
+                        theme::print_info("Please restart WinMole as Administrator.");
+                    } else {
+                        let result = if state == commands::optimize::common::TweakState::Applied {
+                            executor.revert(tweak)
+                        } else {
+                            executor.apply(tweak)
+                        };
+
+                        match result {
+                            Ok(r) if r.success => {
+                                theme::print_success(&format!("Tweak {} successfully!", action.to_lowercase()));
+                            }
+                            Ok(r) => {
+                                theme::print_error(&format!("Tweak {} failed", action.to_lowercase()));
+                                if let Some(err) = r.error {
+                                    println!("    {}", style(err).red().dim());
+                                }
+                            }
+                            Err(e) => {
+                                theme::print_error(&format!("Error: {}", e));
+                            }
+                        }
+                    }
+                }
+
+                wait_for_enter()?;
+            }
+            Some(idx) if idx == tweaks.len() => {
+                // Apply all safe tweaks
+                term.clear_screen()?;
+                theme::print_command_banner(title, icon, "Applying all safe tweaks...");
+
+                if !commands::optimize::is_elevated() {
+                    theme::print_warning("Some tweaks require administrator privileges.");
+                    theme::print_info("Please restart WinMole as Administrator for full functionality.");
+                    wait_for_enter()?;
+                    continue;
+                }
+
+                let safe_tweaks: Vec<_> = tweaks.iter()
+                    .filter(|t| t.risk == commands::optimize::common::TweakRisk::Safe)
+                    .collect();
+
+                let mut success_count = 0;
+                let mut fail_count = 0;
+
+                for tweak in safe_tweaks {
+                    print!("  {} Applying {}... ", style(icons::PROGRESS).cyan(), tweak.name);
+                    match executor.apply(tweak) {
+                        Ok(r) if r.success => {
+                            println!("{}", style("OK").green());
+                            success_count += 1;
+                        }
+                        _ => {
+                            println!("{}", style("FAILED").red());
+                            fail_count += 1;
+                        }
+                    }
+                }
+
+                println!();
+                theme::print_result_summary(
+                    "SAFE TWEAKS APPLIED",
+                    &[
+                        ("Successful", success_count.to_string()),
+                        ("Failed", fail_count.to_string()),
+                    ],
+                    &[],
+                );
+
+                wait_for_enter()?;
+            }
+            _ => break,
+        }
+    }
+
+    Ok(())
+}
+
+/// Run the debloat submenu
+fn run_debloat_menu(term: &Term) -> Result<()> {
+    loop {
+        term.clear_screen()?;
+        theme::print_command_banner("App Debloater", icons::DEBLOAT, "Remove Windows bloatware");
+        theme::print_breadcrumb(&["Main Menu", "Performance", "Debloat"]);
+
+        let options = vec![
+            format!("{} {} Scan for Bloatware     - Find removable apps",
+                style("[1]").cyan().bold(), icons::DIAGNOSE),
+            format!("{} {} List Installed Apps    - Show all AppX packages",
+                style("[2]").cyan().bold(), icons::BULLET),
+            format!("{} {} Remove Safe Apps       - Remove all safe bloatware",
+                style("[3]").cyan().bold(), icons::CLEANUP),
+            format!("{} {} Remove Specific App    - Choose apps to remove",
+                style("[4]").cyan().bold(), icons::ERROR),
+            format!("{} {} Back to Performance Menu",
+                style("[B]").yellow().bold(), icons::BACK),
+        ];
+
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select action")
+            .items(&options)
+            .default(0)
+            .interact_opt()?;
+
+        match selection {
+            Some(4) | None => break,
+            Some(action_idx) => {
+                term.clear_screen()?;
+                match action_idx {
+                    0 => {
+                        theme::print_command_banner("Scan for Bloatware", icons::DIAGNOSE, "Finding removable apps...");
+                        commands::optimize::debloat::run("scan", None, false)?;
+                    }
+                    1 => {
+                        theme::print_command_banner("Installed Apps", icons::BULLET, "All AppX packages");
+                        commands::optimize::debloat::run("list", None, false)?;
+                    }
+                    2 => {
+                        theme::print_command_banner("Remove Safe Apps", icons::CLEANUP, "Removing safe bloatware");
+
+                        if !commands::optimize::is_elevated() {
+                            theme::print_warning("Removing apps requires administrator privileges.");
+                            theme::print_info("Please restart WinMole as Administrator.");
+                            wait_for_enter()?;
+                            continue;
+                        }
+
+                        // Show preview first
+                        commands::optimize::debloat::run("remove-safe", None, true)?;
+
+                        println!();
+                        let proceed = dialoguer::Confirm::new()
+                            .with_prompt("Remove all these apps?")
+                            .default(false)
+                            .interact()?;
+
+                        if proceed {
+                            commands::optimize::debloat::run("remove-safe", None, false)?;
+                            theme::print_success_animation("Safe bloatware removed!");
+                        }
+                    }
+                    3 => {
+                        theme::print_command_banner("Remove Specific App", icons::ERROR, "Select app to remove");
+
+                        let app_name: String = dialoguer::Input::new()
+                            .with_prompt("Enter app name (or partial match)")
+                            .interact_text()?;
+
+                        if !app_name.is_empty() {
+                            if !commands::optimize::is_elevated() {
+                                theme::print_warning("Removing apps requires administrator privileges.");
+                                theme::print_info("Please restart WinMole as Administrator.");
+                            } else {
+                                commands::optimize::debloat::run("remove", Some(&app_name), false)?;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                wait_for_enter()?;
+            }
         }
     }
 

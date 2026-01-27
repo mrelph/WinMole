@@ -72,6 +72,12 @@ pub mod icons {
     pub const QUICK: &str = "⚡";
     pub const EXIT: &str = "👋";
     pub const MOLE: &str = "🐾";
+    pub const PERFORMANCE: &str = "🚀";
+    pub const PRIVACY: &str = "🔒";
+    pub const NETWORK: &str = "🌐";
+    pub const MEMORY: &str = "💾";
+    pub const HARDWARE: &str = "🔧";
+    pub const DEBLOAT: &str = "🗑";
 }
 
 // ============================================================================
