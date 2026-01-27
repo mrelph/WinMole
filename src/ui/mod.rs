@@ -76,44 +76,50 @@ pub fn run_tui() -> Result<()> {
             }
 
             Some(1) => {
-                // Disk Analysis
-                term.clear_screen()?;
-
-                let modes = vec![
-                    "Tree View",
-                    "Largest Files",
-                    "Largest Folders",
-                    "File Types",
-                    "Old Files",
-                    "Summary",
-                ];
-
-                let mode_selection = Select::with_theme(&ColorfulTheme::default())
-                    .with_prompt("Select analysis mode")
-                    .items(&modes)
-                    .default(0)
-                    .interact_opt()?;
-
-                if let Some(mode_idx) = mode_selection {
-                    let mode = match mode_idx {
-                        0 => "tree",
-                        1 => "largest-files",
-                        2 => "largest-folders",
-                        3 => "file-types",
-                        4 => "old-files",
-                        _ => "summary",
-                    };
-
-                    let path: String = dialoguer::Input::new()
-                        .with_prompt("Enter path to analyze")
-                        .default("C:\\Users".to_string())
-                        .interact_text()?;
-
+                // Disk Analysis - submenu loop
+                loop {
                     term.clear_screen()?;
-                    commands::disk::run(&path, mode, 3, 10)?;
-                }
+                    crate::ui::print_banner("Disk Analysis");
 
-                wait_for_enter()?;
+                    let modes = vec![
+                        "Tree View",
+                        "Largest Files",
+                        "Largest Folders",
+                        "File Types",
+                        "Old Files",
+                        "Summary",
+                        "← Back to Main Menu",
+                    ];
+
+                    let mode_selection = Select::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Select analysis mode")
+                        .items(&modes)
+                        .default(0)
+                        .interact_opt()?;
+
+                    match mode_selection {
+                        Some(6) | None => break, // Back to main menu
+                        Some(mode_idx) => {
+                            let mode = match mode_idx {
+                                0 => "tree",
+                                1 => "largest-files",
+                                2 => "largest-folders",
+                                3 => "file-types",
+                                4 => "old-files",
+                                _ => "summary",
+                            };
+
+                            let path: String = dialoguer::Input::new()
+                                .with_prompt("Enter path to analyze")
+                                .default("C:\\Users".to_string())
+                                .interact_text()?;
+
+                            term.clear_screen()?;
+                            commands::disk::run(&path, mode, 3, 10)?;
+                            wait_for_enter()?;
+                        }
+                    }
+                }
             }
 
             Some(2) => {
@@ -170,142 +176,193 @@ pub fn run_tui() -> Result<()> {
             }
 
             Some(4) => {
-                // Package Manager
-                term.clear_screen()?;
-
-                let actions = vec![
-                    "List Installed",
-                    "Check for Updates",
-                    "Update All",
-                    "Search Packages",
-                    "Export Package List",
-                ];
-
-                let action_selection = Select::with_theme(&ColorfulTheme::default())
-                    .with_prompt("Select action")
-                    .items(&actions)
-                    .default(0)
-                    .interact_opt()?;
-
-                if let Some(action_idx) = action_selection {
+                // Package Manager - submenu loop
+                loop {
                     term.clear_screen()?;
-                    match action_idx {
-                        0 => commands::winget::run("list", None, false)?,
-                        1 => commands::winget::run("audit", None, false)?,
-                        2 => {
-                            commands::winget::run("audit", None, false)?;
-                            println!();
-                            let proceed = dialoguer::Confirm::new()
-                                .with_prompt("Update all packages?")
-                                .default(false)
-                                .interact()?;
-                            if proceed {
-                                commands::winget::run("update", None, true)?;
+                    crate::ui::print_banner("Package Manager");
+
+                    let actions = vec![
+                        "List Installed",
+                        "Check for Updates",
+                        "Update All",
+                        "Update Selected",
+                        "Uninstall Package",
+                        "Search Packages",
+                        "Export Package List",
+                        "← Back to Main Menu",
+                    ];
+
+                    let action_selection = Select::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Select action")
+                        .items(&actions)
+                        .default(0)
+                        .interact_opt()?;
+
+                    match action_selection {
+                        Some(7) | None => break, // Back to main menu
+                        Some(action_idx) => {
+                            term.clear_screen()?;
+                            match action_idx {
+                                0 => commands::winget::run("list", None, false)?,
+                                1 => commands::winget::run("audit", None, false)?,
+                                2 => {
+                                    commands::winget::run("audit", None, false)?;
+                                    println!();
+                                    let proceed = dialoguer::Confirm::new()
+                                        .with_prompt("Update all packages?")
+                                        .default(false)
+                                        .interact()?;
+                                    if proceed {
+                                        commands::winget::run("update", None, true)?;
+                                    }
+                                }
+                                3 => commands::winget::run("update-interactive", None, false)?,
+                                4 => commands::winget::run("uninstall-interactive", None, false)?,
+                                5 => {
+                                    let query: String = dialoguer::Input::new()
+                                        .with_prompt("Enter search query")
+                                        .interact_text()?;
+                                    commands::winget::run("search", Some(&query), false)?;
+                                }
+                                6 => commands::winget::run("export", None, false)?,
+                                _ => {}
                             }
+                            wait_for_enter()?;
                         }
-                        3 => {
-                            let query: String = dialoguer::Input::new()
-                                .with_prompt("Enter search query")
-                                .interact_text()?;
-                            commands::winget::run("search", Some(&query), false)?;
-                        }
-                        4 => commands::winget::run("export", None, false)?,
-                        _ => {}
                     }
                 }
-
-                wait_for_enter()?;
             }
 
             Some(5) => {
-                // Registry Cleaner
-                term.clear_screen()?;
-                commands::registry::run(
-                    "scan",
-                    &["invalid_paths".to_string(), "missing_dlls".to_string(), "orphaned_software".to_string()],
-                    None,
-                )?;
+                // Registry Cleaner - submenu loop
+                loop {
+                    term.clear_screen()?;
+                    crate::ui::print_banner("Registry Cleaner");
 
-                wait_for_enter()?;
+                    let actions = vec![
+                        "Full Registry Scan",
+                        "Scan Invalid Paths Only",
+                        "Scan Missing DLLs Only",
+                        "Scan Orphaned Software Only",
+                        "← Back to Main Menu",
+                    ];
+
+                    let action_selection = Select::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Select scan type")
+                        .items(&actions)
+                        .default(0)
+                        .interact_opt()?;
+
+                    match action_selection {
+                        Some(4) | None => break, // Back to main menu
+                        Some(action_idx) => {
+                            term.clear_screen()?;
+                            let categories = match action_idx {
+                                1 => vec!["invalid_paths".to_string()],
+                                2 => vec!["missing_dlls".to_string()],
+                                3 => vec!["orphaned_software".to_string()],
+                                _ => vec![
+                                    "invalid_paths".to_string(),
+                                    "missing_dlls".to_string(),
+                                    "orphaned_software".to_string(),
+                                ],
+                            };
+                            commands::registry::run("scan", &categories, None)?;
+                            wait_for_enter()?;
+                        }
+                    }
+                }
             }
 
             Some(6) => {
-                // Startup Optimizer
-                term.clear_screen()?;
-
-                let actions = vec![
-                    "List Startup Items",
-                    "Boot Impact Analysis",
-                    "Disable Item",
-                    "Enable Item",
-                ];
-
-                let action_selection = Select::with_theme(&ColorfulTheme::default())
-                    .with_prompt("Select action")
-                    .items(&actions)
-                    .default(0)
-                    .interact_opt()?;
-
-                if let Some(action_idx) = action_selection {
+                // Startup Optimizer - submenu loop
+                loop {
                     term.clear_screen()?;
-                    match action_idx {
-                        0 => commands::startup::run("list", None, true)?,
-                        1 => commands::startup::run("analyze", None, false)?,
-                        2 => {
-                            commands::startup::run("list", None, false)?;
-                            println!();
-                            let name: String = dialoguer::Input::new()
-                                .with_prompt("Enter name of item to disable")
-                                .interact_text()?;
-                            if !name.is_empty() {
-                                commands::startup::run("disable", Some(&name), false)?;
+                    crate::ui::print_banner("Startup Optimizer");
+
+                    let actions = vec![
+                        "List Startup Items",
+                        "Boot Impact Analysis",
+                        "Disable Item",
+                        "Enable Item",
+                        "← Back to Main Menu",
+                    ];
+
+                    let action_selection = Select::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Select action")
+                        .items(&actions)
+                        .default(0)
+                        .interact_opt()?;
+
+                    match action_selection {
+                        Some(4) | None => break, // Back to main menu
+                        Some(action_idx) => {
+                            term.clear_screen()?;
+                            match action_idx {
+                                0 => commands::startup::run("list", None, true)?,
+                                1 => commands::startup::run("analyze", None, false)?,
+                                2 => {
+                                    commands::startup::run("list", None, false)?;
+                                    println!();
+                                    let name: String = dialoguer::Input::new()
+                                        .with_prompt("Enter name of item to disable")
+                                        .interact_text()?;
+                                    if !name.is_empty() {
+                                        commands::startup::run("disable", Some(&name), false)?;
+                                    }
+                                }
+                                3 => {
+                                    commands::startup::run("list", None, false)?;
+                                    println!();
+                                    let name: String = dialoguer::Input::new()
+                                        .with_prompt("Enter name of item to enable")
+                                        .interact_text()?;
+                                    if !name.is_empty() {
+                                        commands::startup::run("enable", Some(&name), false)?;
+                                    }
+                                }
+                                _ => {}
                             }
+                            wait_for_enter()?;
                         }
-                        3 => {
-                            commands::startup::run("list", None, false)?;
-                            println!();
-                            let name: String = dialoguer::Input::new()
-                                .with_prompt("Enter name of item to enable")
-                                .interact_text()?;
-                            if !name.is_empty() {
-                                commands::startup::run("enable", Some(&name), false)?;
-                            }
-                        }
-                        _ => {}
                     }
                 }
-
-                wait_for_enter()?;
             }
 
             Some(7) => {
-                // System Diagnostics
-                term.clear_screen()?;
-
-                let actions = vec![
-                    "Process Analysis    - Find high CPU/memory processes",
-                    "Memory Analysis     - Detailed memory breakdown",
-                    "Service Analysis    - Check Windows services",
-                    "Run All Diagnostics",
-                ];
-
-                let action_selection = Select::with_theme(&ColorfulTheme::default())
-                    .with_prompt("Select diagnostic")
-                    .items(&actions)
-                    .default(3)
-                    .interact_opt()?;
-
-                if let Some(action_idx) = action_selection {
+                // System Diagnostics - submenu loop
+                loop {
                     term.clear_screen()?;
-                    match action_idx {
-                        0 => commands::diagnose::run("processes")?,
-                        1 => commands::diagnose::run("memory")?,
-                        2 => commands::diagnose::run("services")?,
-                        _ => commands::diagnose::run("all")?,
+                    crate::ui::print_banner("System Diagnostics");
+
+                    let actions = vec![
+                        "Process Analysis    - Find high CPU/memory processes",
+                        "Memory Analysis     - Detailed memory breakdown",
+                        "Service Analysis    - Check Windows services",
+                        "Run All Diagnostics",
+                        "← Back to Main Menu",
+                    ];
+
+                    let action_selection = Select::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Select diagnostic")
+                        .items(&actions)
+                        .default(0)
+                        .interact_opt()?;
+
+                    match action_selection {
+                        Some(4) | None => break, // Back to main menu
+                        Some(action_idx) => {
+                            term.clear_screen()?;
+                            match action_idx {
+                                0 => commands::diagnose::run("processes")?,
+                                1 => commands::diagnose::run("memory")?,
+                                2 => commands::diagnose::run("services")?,
+                                _ => commands::diagnose::run("all")?,
+                            }
+                            wait_for_enter()?;
+                        }
                     }
                 }
-
-                wait_for_enter()?;
             }
 
             Some(8) => {
