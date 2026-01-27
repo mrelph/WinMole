@@ -1,4 +1,8 @@
-# PowerShell
+# Rust
+/target/
+Cargo.lock
+
+# PowerShell (archived)
 *.ps1xml
 
 # User configuration

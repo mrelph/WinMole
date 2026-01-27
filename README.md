@@ -1,18 +1,18 @@
 # WinMole
 
-**Windows System Optimization CLI** - A comprehensive PowerShell module for Windows system optimization, cleaning, and analysis with a rich terminal UI.
+**Windows System Optimization CLI** - A comprehensive command-line tool for Windows system optimization, cleaning, and analysis with a rich terminal UI.
 
 Inspired by [tw93/Mole](https://github.com/tw93/Mole) for macOS.
 
-![PowerShell](https://img.shields.io/badge/PowerShell-7.0+-blue.svg)
+![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)
 ![Windows](https://img.shields.io/badge/Windows-10%2F11-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 ## Features
 
 - **System Cleaning** - Clean temp files, browser caches, Windows Update cache, and more
-- **Disk Analysis** - Tree-view disk usage, find large files, detect duplicates
-- **Performance Monitor** - Real-time system health dashboard with CPU, RAM, disk, and network stats
+- **Disk Analysis** - Tree-view disk usage, find large files, file type breakdown
+- **Performance Monitor** - Real-time system health dashboard with CPU, RAM, disk stats
 - **Developer Cleanup** - Remove build artifacts (node_modules, bin/obj, target, etc.)
 - **Package Manager** - Integrated winget wrapper with batch operations
 - **Registry Cleaner** - Scan and clean orphaned registry entries
@@ -22,201 +22,212 @@ Inspired by [tw93/Mole](https://github.com/tw93/Mole) for macOS.
 
 ### From Source
 
-```powershell
+```bash
 # Clone the repository
-git clone https://github.com/yourusername/WinMole.git
+git clone https://github.com/mrelph/WinMole.git
+cd WinMole
 
-# Import the module
-Import-Module ./WinMole/WinMole.psd1
+# Build release version
+cargo build --release
 
-# Or add to your PowerShell profile for permanent access
-Add-Content $PROFILE "`nImport-Module 'C:\path\to\WinMole\WinMole.psd1'"
+# The binary will be at target/release/winmole.exe
 ```
 
-### From PowerShell Gallery (Coming Soon)
+### Pre-built Binaries (Coming Soon)
 
-```powershell
-Install-Module -Name WinMole
-```
+Download from the [Releases](https://github.com/mrelph/WinMole/releases) page.
 
 ## Requirements
 
-- PowerShell 7.0 or later
 - Windows 10/11
 - Administrator rights (for some operations)
+- Rust 1.70+ (for building from source)
 
 ## Quick Start
 
-```powershell
+```bash
 # Launch interactive menu
-Show-WinMole
-
-# Or use the alias
 winmole
 
+# Or with the -i flag
+winmole -i
+
 # Quick system scan
-Show-WinMole -Quick
+winmole -q
 ```
 
 ## Commands
 
 ### System Cleaning
 
-```powershell
-# Preview cleanup (recommended first)
-Invoke-WinMoleClean -WhatIf
+```bash
+# Preview cleanup (dry run)
+winmole clean --dry-run
 
 # Clean specific categories
-Invoke-WinMoleClean -Category Browser,User
+winmole clean --category user --category browser
 
-# Clean everything
-Invoke-WinMoleClean -Category All -Force
+# Clean with force (no confirmations)
+winmole clean --force
 ```
 
-**Alias:** `wm-clean`
+**Categories:** `user`, `system`, `windows`, `browser`, `cache`
 
 ### Disk Analysis
 
-```powershell
+```bash
 # Tree view of disk usage
-Get-WinMoleDisk -Path C:\Users -Depth 3
+winmole disk C:\Users --mode tree --depth 3
 
 # Find largest files
-Get-WinMoleDisk -Mode LargestFiles -TopN 20
+winmole disk C:\ --mode largest-files --top 20
 
-# Find duplicates
-Get-WinMoleDisk -Mode Duplicates -Path D:\Documents
+# Find largest folders
+winmole disk C:\Users --mode largest-folders
 
 # File type breakdown
-Get-WinMoleDisk -Mode FileTypes
-```
+winmole disk C:\ --mode file-types
 
-**Alias:** `wm-disk`
+# Find old files
+winmole disk C:\Downloads --mode old-files
+
+# Summary view
+winmole disk C:\ --mode summary
+```
 
 ### System Status
 
-```powershell
+```bash
 # Show current status
-Get-WinMoleStatus
+winmole status
 
-# Live monitoring
-Get-WinMoleStatus -Live -RefreshInterval 2
+# Live monitoring (updates every 2 seconds)
+winmole status --live
 
-# Detailed breakdown
-Get-WinMoleStatus -Detailed
+# Custom refresh interval
+winmole status --live --interval 5
 ```
-
-**Alias:** `wm-status`
 
 ### Developer Cleanup
 
-```powershell
+```bash
 # Preview cleanup
-Clear-WinMoleDevArtifacts -Path ~/Code -WhatIf
+winmole dev ~/Code --dry-run
 
 # Clean specific artifact types
-Clear-WinMoleDevArtifacts -Type node_modules,target
+winmole dev ~/Projects --types node_modules --types target
 
-# Clean old artifacts only
-Clear-WinMoleDevArtifacts -OlderThan 30
+# Clean artifacts older than 30 days
+winmole dev ~/Code --older-than 30
+
+# Force cleanup
+winmole dev ~/Projects --force
 ```
 
-**Alias:** `wm-dev`
+**Types:** `node_modules`, `target`, `bin`, `obj`, `.gradle`, `__pycache__`, `.pytest_cache`, `build`, `dist`, `.next`, `.nuxt`
 
 ### Package Manager (winget)
 
-```powershell
+```bash
 # List installed packages
-Invoke-WinMoleWinget list
+winmole winget list
 
 # Check for updates
-Invoke-WinMoleWinget audit
+winmole winget audit
 
 # Update all packages
-Invoke-WinMoleWinget update -All
+winmole winget update --all
 
 # Search for packages
-Invoke-WinMoleWinget search vscode
-```
+winmole winget search --package vscode
 
-**Alias:** `wm-winget`
+# Export package list
+winmole winget export
+```
 
 ### Registry Cleaner
 
-```powershell
+```bash
 # Scan for issues
-Invoke-WinMoleRegistry -Mode Scan
+winmole registry scan
 
 # Scan specific categories
-Invoke-WinMoleRegistry -Category InvalidPaths,MissingDLLs
+winmole registry scan --category invalid_paths --category missing_dlls
 
 # Clean with backup
-Invoke-WinMoleRegistry -Mode Clean -BackupPath C:\Backup
+winmole registry clean --backup ~/Desktop/backup.reg
 ```
 
-**Alias:** `wm-registry`
+**Categories:** `invalid_paths`, `missing_dlls`, `orphaned_software`, `empty_keys`
 
 ### Startup Optimizer
 
-```powershell
+```bash
 # List all startup items
-Optimize-WinMoleStartup -Action List -ShowImpact
+winmole startup list
+
+# List with impact analysis
+winmole startup list --impact
 
 # Analyze boot impact
-Optimize-WinMoleStartup -Action Analyze
+winmole startup analyze
 
 # Disable a startup item
-Optimize-WinMoleStartup -Action Disable -Name "Discord"
+winmole startup disable --name "Discord"
 
 # Enable a startup item
-Optimize-WinMoleStartup -Action Enable -Name "Discord"
+winmole startup enable --name "Discord"
 ```
 
-**Alias:** `wm-startup`
+## Interactive Mode
+
+Launch the interactive TUI menu:
+
+```bash
+winmole
+# or
+winmole -i
+```
+
+Navigate using arrow keys and Enter to select options.
 
 ## Screenshots
 
 ### System Status Dashboard
 ```
-╔══════════════════ WinMole Status ══════════════════╗
-║  Health Score: 87/100 ████████████████░░░░ Good    ║
-╠════════════════════════════════════════════════════╣
-║  CPU    12% ███░░░░░░░░░░░░░░░░░  8C/16T          ║
-║  RAM    58% ████████████░░░░░░░░  18.6/32 GB      ║
-║  Disk   23% █████░░░░░░░░░░░░░░░  R:45 W:12 MB/s  ║
-║  Net    ↑2.3 MB/s  ↓15.1 MB/s                      ║
-╚════════════════════════════════════════════════════╝
++======================================================+
+|       WinMole - Windows System Optimization          |
++======================================================+
+
+  Health Score: 87/100 - Excellent
+
+  CPU Usage:     12.3%   [====                ]
+  Memory Usage:  58.2%   [============        ]  18.6/32.0 GB
+  Disk Free:     45.2 GB (17.6% of 256 GB)
+  System Uptime: 3 days, 14:23:45
 ```
 
 ### Disk Analysis Tree
 ```
-■ C:\ (256 GB total, 45 GB free)
-├── ■ Users (89 GB) ████████████░░░░░░░░ 35%
-│   └── ■ mrelph (85 GB)
-│       ├── ■ Downloads (23 GB)
-│       └── ■ AppData (31 GB)
-├── ■ Windows (28 GB) ███████░░░░░░░░░░░ 11%
-└── ■ Program Files (42 GB) ██████████░░░░░░░░ 16%
+  C:\Users (89.2 GB)
+  +-- mrelph (85.1 GB)
+  |   +-- Downloads (23.4 GB)
+  |   +-- AppData (31.2 GB)
+  |   +-- Documents (15.8 GB)
+  |   +-- Desktop (8.2 GB)
 ```
-
-## Configuration
-
-WinMole stores its configuration in `%APPDATA%\WinMole\config.json`. You can customize:
-
-- Default cleanup categories
-- Disk analysis depth
-- Status monitor refresh rate
-- Developer artifact types
-- Registry scan categories
-- And more...
 
 ## Safety Features
 
-- **WhatIf/Preview mode** - Preview all destructive operations before execution
+- **Dry-run/Preview mode** - Preview all destructive operations before execution
 - **Protected paths** - System-critical paths are never deleted
 - **Registry backup** - Automatic backup before registry cleaning
 - **Confirmation prompts** - Important operations require confirmation
 - **Safe deletion** - Files in use are skipped gracefully
+
+## Archive
+
+The original PowerShell implementation is preserved in the `archive/` directory for reference.
 
 ## Contributing
 
@@ -235,4 +246,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - Inspired by [tw93/Mole](https://github.com/tw93/Mole) for macOS
-- Built with PowerShell 7+ and love
+- Built with Rust for performance and reliability
