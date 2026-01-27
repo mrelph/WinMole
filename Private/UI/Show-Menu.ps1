@@ -13,6 +13,8 @@ function Show-Menu {
         Initially selected index.
     .PARAMETER ReturnIndex
         Return the selected index instead of the option value.
+    .PARAMETER Simple
+        Use simple numbered input instead of arrow key navigation.
     #>
     [CmdletBinding()]
     param(
@@ -29,21 +31,90 @@ function Show-Menu {
         [switch]$ReturnIndex,
 
         [Parameter()]
+        [switch]$Simple,
+
+        [Parameter()]
         [string]$Prompt = "Use arrow keys to navigate, Enter to select, Q to quit"
     )
 
     # Normalize options to hashtables
-    $menuOptions = $Options | ForEach-Object {
+    $menuOptions = @($Options | ForEach-Object {
         if ($_ -is [hashtable]) {
             $_
         } else {
             @{ Name = "$_"; Value = $_ }
         }
+    })
+
+    # Use simple mode if console doesn't support ReadKey well
+    $useSimple = $Simple
+    if (-not $useSimple) {
+        try {
+            # Test if we can use Console methods
+            $null = [Console]::CursorVisible
+        } catch {
+            $useSimple = $true
+        }
     }
 
+    if ($useSimple) {
+        # Simple numbered menu
+        Clear-Host
+
+        if ($Title) {
+            Write-WinMoleHeader -Title $Title -Style Simple
+            Write-Host ""
+        }
+
+        for ($i = 0; $i -lt $menuOptions.Count; $i++) {
+            $option = $menuOptions[$i]
+            $num = $i + 1
+            Write-Host "  [$num] $($option.Name)"
+            if ($option.Description) {
+                Write-ColorOutput "      $($option.Description)" -ForegroundColor BrightBlack
+            }
+        }
+
+        Write-Host ""
+        Write-Host "  [0] Cancel / Go Back"
+        Write-Host ""
+
+        $choice = Read-Host "Enter choice (1-$($menuOptions.Count))"
+
+        if ($choice -eq '0' -or $choice -eq 'q' -or $choice -eq 'Q' -or [string]::IsNullOrWhiteSpace($choice)) {
+            return $null
+        }
+
+        $choiceNum = 0
+        if ([int]::TryParse($choice, [ref]$choiceNum) -and $choiceNum -ge 1 -and $choiceNum -le $menuOptions.Count) {
+            $selected = $menuOptions[$choiceNum - 1]
+
+            if ($ReturnIndex) {
+                return $choiceNum - 1
+            }
+
+            if ($selected.Action) {
+                & $selected.Action
+            }
+
+            if ($selected.Value) {
+                return $selected.Value
+            } else {
+                return $selected.Name
+            }
+        }
+
+        return $null
+    }
+
+    # Interactive arrow-key menu
     $selectedIndex = $DefaultIndex
-    $cursorVisible = [Console]::CursorVisible
-    [Console]::CursorVisible = $false
+    $cursorVisible = $true
+    try { $cursorVisible = [Console]::CursorVisible } catch { }
+
+    try {
+        [Console]::CursorVisible = $false
+    } catch { }
 
     try {
         while ($true) {
@@ -84,17 +155,17 @@ function Show-Menu {
             Write-ColorOutput $Prompt -ForegroundColor BrightBlack
 
             # Read key
-            $key = [Console]::ReadKey($true)
+            $key = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
 
-            switch ($key.Key) {
-                'UpArrow' {
+            switch ($key.VirtualKeyCode) {
+                38 { # UpArrow
                     $selectedIndex = if ($selectedIndex -le 0) { $menuOptions.Count - 1 } else { $selectedIndex - 1 }
                 }
-                'DownArrow' {
+                40 { # DownArrow
                     $selectedIndex = if ($selectedIndex -ge ($menuOptions.Count - 1)) { 0 } else { $selectedIndex + 1 }
                 }
-                'Enter' {
-                    [Console]::CursorVisible = $cursorVisible
+                13 { # Enter
+                    try { [Console]::CursorVisible = $cursorVisible } catch { }
                     Clear-Host
 
                     if ($ReturnIndex) {
@@ -112,21 +183,26 @@ function Show-Menu {
                         return $selected.Name
                     }
                 }
-                'Q' {
-                    [Console]::CursorVisible = $cursorVisible
+                81 { # Q
+                    try { [Console]::CursorVisible = $cursorVisible } catch { }
                     Clear-Host
                     return $null
                 }
-                'Escape' {
-                    [Console]::CursorVisible = $cursorVisible
+                27 { # Escape
+                    try { [Console]::CursorVisible = $cursorVisible } catch { }
                     Clear-Host
                     return $null
                 }
             }
         }
     }
+    catch {
+        # If interactive mode fails, fall back to simple mode
+        try { [Console]::CursorVisible = $cursorVisible } catch { }
+        return Show-Menu -Title $Title -Options $Options -DefaultIndex $DefaultIndex -ReturnIndex:$ReturnIndex -Simple
+    }
     finally {
-        [Console]::CursorVisible = $cursorVisible
+        try { [Console]::CursorVisible = $cursorVisible } catch { }
     }
 }
 
