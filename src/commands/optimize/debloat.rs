@@ -7,6 +7,7 @@
 
 use anyhow::Result;
 use console::style;
+use std::process::Command;
 
 use super::common::{Tweak, TweakAction, TweakCategory, TweakRisk};
 use super::TweakRegistry;

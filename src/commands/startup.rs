@@ -82,11 +82,13 @@ fn get_startup_items_windows() -> Vec<StartupItemInfo> {
                     if path.extension().map(|e| e == "lnk").unwrap_or(false) {
                         let name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
                         if !items.iter().any(|i| i.name == name) {
+                            // Use the name for impact estimation since we don't have the full command
+                            let impact = estimate_impact(&name);
                             items.push(StartupItemInfo {
                                 name,
                                 enabled: true,
                                 category: "Third-party".to_string(),
-                                impact: "Unknown".to_string(),
+                                impact,
                             });
                         }
                     }
