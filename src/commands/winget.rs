@@ -1,5 +1,6 @@
 use anyhow::Result;
 use console::style;
+use dialoguer::{theme::ColorfulTheme, MultiSelect, Select};
 use std::process::Command;
 
 use crate::commands::{print_header, print_success, print_warning, print_error, print_progress};
@@ -168,7 +169,52 @@ fn update_packages(package: Option<&str>, all: bool) -> Result<()> {
             print_error(&format!("Failed to update {}", pkg));
         }
     } else {
-        print_error("Specify a package name or use --all");
+        // Interactive selection
+        let upgradable = get_upgradable_packages()?;
+
+        if upgradable.is_empty() {
+            print_success("All packages are up to date!");
+            return Ok(());
+        }
+
+        println!("  {} packages have updates available", style(upgradable.len()).yellow());
+        println!();
+
+        let display_items: Vec<String> = upgradable.iter()
+            .map(|(name, id, current, available)| {
+                format!("{} ({}) {} → {}", name, id, current, available)
+            })
+            .collect();
+
+        let selections = MultiSelect::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select packages to update (Space to select, Enter to confirm)")
+            .items(&display_items)
+            .interact_opt()?;
+
+        if let Some(indices) = selections {
+            if indices.is_empty() {
+                println!("  No packages selected");
+                return Ok(());
+            }
+
+            println!();
+            for idx in indices {
+                let (name, id, _, _) = &upgradable[idx];
+                print_progress(&format!("Updating {} ({})...", name, id));
+
+                let status = Command::new("winget")
+                    .args(["upgrade", id, "--accept-source-agreements", "--accept-package-agreements"])
+                    .output()?;
+
+                if status.status.success() {
+                    print_success(&format!("{} updated", name));
+                } else {
+                    print_error(&format!("Failed to update {}", name));
+                }
+            }
+        } else {
+            println!("  Cancelled");
+        }
     }
 
     Ok(())
@@ -249,25 +295,78 @@ fn install_package(package: Option<&str>) -> Result<()> {
 }
 
 fn uninstall_package(package: Option<&str>) -> Result<()> {
-    let package = match package {
-        Some(p) => p,
-        None => {
-            print_error("Specify a package to uninstall");
+    if let Some(pkg) = package {
+        print_progress(&format!("Uninstalling {}...", pkg));
+        println!();
+
+        let status = Command::new("winget")
+            .args(["uninstall", pkg])
+            .status()?;
+
+        if status.success() {
+            print_success(&format!("{} uninstalled successfully", pkg));
+        } else {
+            print_error(&format!("Failed to uninstall {}", pkg));
+        }
+    } else {
+        // Interactive selection
+        let packages = get_installed_packages()?;
+
+        if packages.is_empty() {
+            println!("  No packages found");
             return Ok(());
         }
-    };
 
-    print_progress(&format!("Uninstalling {}...", package));
-    println!();
+        println!("  {} packages installed", style(packages.len()).cyan());
+        println!();
 
-    let status = Command::new("winget")
-        .args(["uninstall", package])
-        .status()?;
+        let display_items: Vec<String> = packages.iter()
+            .map(|(name, id, version)| {
+                format!("{} ({}) v{}", name, id, version)
+            })
+            .collect();
 
-    if status.success() {
-        print_success(&format!("{} uninstalled successfully", package));
-    } else {
-        print_error(&format!("Failed to uninstall {}", package));
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select package to uninstall")
+            .items(&display_items)
+            .default(0)
+            .interact_opt()?;
+
+        if let Some(idx) = selection {
+            let (name, id, _) = &packages[idx];
+
+            println!();
+            println!("  {} Are you sure you want to uninstall {} ({})?",
+                style("⚠").yellow(),
+                style(name).white().bold(),
+                id
+            );
+
+            let confirm = Select::with_theme(&ColorfulTheme::default())
+                .with_prompt("Confirm")
+                .items(&["Yes, uninstall", "No, cancel"])
+                .default(1)
+                .interact()?;
+
+            if confirm == 0 {
+                println!();
+                print_progress(&format!("Uninstalling {}...", name));
+
+                let status = Command::new("winget")
+                    .args(["uninstall", id])
+                    .status()?;
+
+                if status.success() {
+                    print_success(&format!("{} uninstalled successfully", name));
+                } else {
+                    print_error(&format!("Failed to uninstall {}", name));
+                }
+            } else {
+                println!("  Cancelled");
+            }
+        } else {
+            println!("  Cancelled");
+        }
     }
 
     Ok(())
@@ -291,4 +390,119 @@ fn export_packages() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Get list of packages with available updates
+/// Returns: Vec<(name, id, current_version, available_version)>
+fn get_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
+    print_progress("Checking for updates...");
+
+    let output = Command::new("winget")
+        .args(["upgrade", "--accept-source-agreements"])
+        .output()?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut packages = Vec::new();
+
+    let mut in_table = false;
+    let mut name_end = 0;
+    let mut id_end = 0;
+    let mut version_end = 0;
+
+    for line in stdout.lines() {
+        // Find header line to get column positions
+        if line.contains("Name") && line.contains("Id") && line.contains("Version") && line.contains("Available") {
+            in_table = true;
+            // Find column positions
+            if let Some(pos) = line.find("Id") {
+                name_end = pos;
+            }
+            if let Some(pos) = line.find("Version") {
+                id_end = pos;
+            }
+            if let Some(pos) = line.find("Available") {
+                version_end = pos;
+            }
+            continue;
+        }
+
+        if line.starts_with('-') {
+            continue;
+        }
+
+        if in_table && !line.trim().is_empty() && !line.contains("upgrades available") && line.len() > version_end {
+            // Parse columns based on positions
+            let name = line[..name_end.min(line.len())].trim().to_string();
+            let id = if id_end > name_end && id_end <= line.len() {
+                line[name_end..id_end.min(line.len())].trim().to_string()
+            } else {
+                continue;
+            };
+            let version = if version_end > id_end && version_end <= line.len() {
+                line[id_end..version_end.min(line.len())].trim().to_string()
+            } else {
+                continue;
+            };
+            let available = line[version_end.min(line.len())..].trim().split_whitespace().next().unwrap_or("").to_string();
+
+            if !name.is_empty() && !id.is_empty() && !available.is_empty() {
+                packages.push((name, id, version, available));
+            }
+        }
+    }
+
+    println!("\r                                    \r"); // Clear progress line
+    Ok(packages)
+}
+
+/// Get list of installed packages
+/// Returns: Vec<(name, id, version)>
+fn get_installed_packages() -> Result<Vec<(String, String, String)>> {
+    print_progress("Fetching installed packages...");
+
+    let output = Command::new("winget")
+        .args(["list", "--accept-source-agreements"])
+        .output()?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut packages = Vec::new();
+
+    let mut in_table = false;
+    let mut name_end = 0;
+    let mut id_end = 0;
+
+    for line in stdout.lines() {
+        // Find header line to get column positions
+        if line.contains("Name") && line.contains("Id") && line.contains("Version") {
+            in_table = true;
+            if let Some(pos) = line.find("Id") {
+                name_end = pos;
+            }
+            if let Some(pos) = line.find("Version") {
+                id_end = pos;
+            }
+            continue;
+        }
+
+        if line.starts_with('-') {
+            continue;
+        }
+
+        if in_table && !line.trim().is_empty() && line.len() > id_end {
+            let name = line[..name_end.min(line.len())].trim().to_string();
+            let id = if id_end > name_end {
+                line[name_end..id_end.min(line.len())].trim().to_string()
+            } else {
+                continue;
+            };
+            let version = line[id_end.min(line.len())..].trim().split_whitespace().next().unwrap_or("").to_string();
+
+            if !name.is_empty() && !id.is_empty() {
+                packages.push((name, id, version));
+            }
+        }
+    }
+
+    println!("\r                                    \r"); // Clear progress line
+    Ok(packages)
 }
