@@ -39,7 +39,8 @@ fn show_tree(path: &PathBuf, max_depth: usize, top_n: usize) -> Result<()> {
 
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}")?);
-    spinner.set_message("Calculating folder sizes...");
+    spinner.enable_steady_tick(std::time::Duration::from_millis(100));
+    spinner.set_message("Calculating folder sizes (this may take a moment)...");
 
     let mut folders: Vec<(PathBuf, u64)> = Vec::new();
 
@@ -47,8 +48,15 @@ fn show_tree(path: &PathBuf, max_depth: usize, top_n: usize) -> Result<()> {
         for entry in entries.flatten() {
             let entry_path = entry.path();
             if entry_path.is_dir() {
-                spinner.set_message(format!("Scanning {}...", entry_path.file_name().unwrap_or_default().to_string_lossy()));
-                let size = calculate_dir_size(&entry_path);
+                let name = entry_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+
+                // Skip known slow/inaccessible directories
+                if should_skip_dir(&name) {
+                    continue;
+                }
+
+                spinner.set_message(format!("Scanning {}...", name));
+                let size = calculate_dir_size_fast(&entry_path, 50000); // Limit to 50k files
                 folders.push((entry_path, size));
             }
         }
@@ -88,7 +96,7 @@ fn show_tree(path: &PathBuf, max_depth: usize, top_n: usize) -> Result<()> {
 
         // Show subdirectories if depth > 1
         if max_depth > 1 {
-            show_subdirs(folder_path, 1, max_depth, is_last, top_n)?;
+            show_subdirs_fast(folder_path, 1, max_depth, is_last)?;
         }
     }
 
@@ -102,7 +110,7 @@ fn show_tree(path: &PathBuf, max_depth: usize, top_n: usize) -> Result<()> {
     Ok(())
 }
 
-fn show_subdirs(path: &PathBuf, current_depth: usize, max_depth: usize, parent_is_last: bool, top_n: usize) -> Result<()> {
+fn show_subdirs_fast(path: &PathBuf, current_depth: usize, max_depth: usize, parent_is_last: bool) -> Result<()> {
     if current_depth >= max_depth {
         return Ok(());
     }
@@ -111,10 +119,15 @@ fn show_subdirs(path: &PathBuf, current_depth: usize, max_depth: usize, parent_i
     let mut subfolders: Vec<(PathBuf, u64)> = Vec::new();
 
     if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
+        for entry in entries.flatten().take(20) { // Limit entries to check
             let entry_path = entry.path();
             if entry_path.is_dir() {
-                let size = calculate_dir_size(&entry_path);
+                let name = entry_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                if should_skip_dir(&name) {
+                    continue;
+                }
+                // Use quick estimation (only count direct children)
+                let size = quick_dir_size(&entry_path);
                 subfolders.push((entry_path, size));
             }
         }
@@ -397,6 +410,89 @@ fn calculate_dir_size(path: &PathBuf) -> u64 {
         .filter_map(|e| e.metadata().ok())
         .map(|m| m.len())
         .sum()
+}
+
+/// Calculate directory size with a file limit to prevent hanging
+fn calculate_dir_size_fast(path: &PathBuf, max_files: usize) -> u64 {
+    let mut size: u64 = 0;
+    let mut count = 0;
+
+    for entry in WalkDir::new(path)
+        .max_depth(10) // Limit depth
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        if entry.file_type().is_file() {
+            if let Ok(metadata) = entry.metadata() {
+                size += metadata.len();
+            }
+            count += 1;
+            if count >= max_files {
+                break;
+            }
+        }
+    }
+
+    size
+}
+
+/// Quick directory size - only counts immediate children, not recursive
+fn quick_dir_size(path: &PathBuf) -> u64 {
+    let mut size: u64 = 0;
+
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten().take(1000) {
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.is_file() {
+                    size += metadata.len();
+                } else if metadata.is_dir() {
+                    // Estimate subdir size by sampling
+                    size += estimate_dir_size(&entry.path());
+                }
+            }
+        }
+    }
+
+    size
+}
+
+/// Estimate directory size by sampling files
+fn estimate_dir_size(path: &std::path::Path) -> u64 {
+    let mut size: u64 = 0;
+    let mut count = 0;
+
+    for entry in WalkDir::new(path)
+        .max_depth(2)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .take(100)
+    {
+        if entry.file_type().is_file() {
+            if let Ok(metadata) = entry.metadata() {
+                size += metadata.len();
+                count += 1;
+            }
+        }
+    }
+
+    // Extrapolate based on sample
+    if count > 0 {
+        size * 10 // Rough estimate
+    } else {
+        0
+    }
+}
+
+/// Check if directory should be skipped (system/slow directories)
+fn should_skip_dir(name: &str) -> bool {
+    let skip_dirs = [
+        "$Recycle.Bin", "$RECYCLE.BIN", "System Volume Information",
+        "Recovery", "Config.Msi", "MSOCache", "$WinREAgent",
+        "PerfLogs", "hiberfil.sys", "pagefile.sys", "swapfile.sys",
+        ".git", "node_modules", "__pycache__", ".cache",
+    ];
+
+    skip_dirs.iter().any(|&d| name.eq_ignore_ascii_case(d))
 }
 
 fn create_bar(percent: u32, width: usize) -> String {
