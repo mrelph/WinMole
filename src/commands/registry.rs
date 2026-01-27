@@ -160,7 +160,7 @@ fn scan_invalid_paths() -> Result<Vec<RegistryIssue>> {
                     if !std::path::Path::new(&path).exists() && !path.is_empty() {
                         issues.push(RegistryIssue {
                             category: "Invalid Paths".to_string(),
-                            name: key_name,
+                            name: key_name.clone(),
                             path: format!("HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{}", key_name),
                             reason: format!("File not found: {}", truncate(&path, 40)),
                         });

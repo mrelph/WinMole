@@ -67,6 +67,7 @@ fn list_startup_items(show_impact: bool) -> Result<()> {
                 } else {
                     "Unknown"
                 };
+                let impact = estimate_impact(&command);
 
                 items.push(StartupItem {
                     name,
@@ -76,7 +77,7 @@ fn list_startup_items(show_impact: bool) -> Result<()> {
                     enabled: true,
                     publisher,
                     category: category.to_string(),
-                    impact: estimate_impact(&command),
+                    impact,
                 });
             }
         }
