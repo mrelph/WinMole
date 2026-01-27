@@ -4,6 +4,29 @@ use dialoguer::{theme::ColorfulTheme, Select};
 
 use crate::commands;
 
+/// Print the WinMole ASCII logo
+pub fn print_logo() {
+    println!("{}", style(r#"
+    __      __.__        _____         .__
+    /  \    /  \__| _____/     \   ____ |  |   ____
+    \   \/\/   /  |/    \  Y  /  /  _ \|  | _/ __ \
+     \        /|  |   |  \   /  (  <_> )  |_\  ___/
+      \__/\  / |__|___|  /\_/    \____/|____/\___  >
+           \/          \/                        \/ "#).cyan());
+    println!();
+    println!("         {}", style("🐾 Windows System Optimization Tool 🐾").white().bold());
+    println!();
+}
+
+/// Print a smaller banner for subcommands
+pub fn print_banner(title: &str) {
+    println!();
+    println!("{}", style("  ╭─────────────────────────────────────────────────╮").cyan());
+    println!("  {}  {:<43} {}", style("│").cyan(), style(title).white().bold(), style("│").cyan());
+    println!("{}", style("  ╰─────────────────────────────────────────────────╯").cyan());
+    println!();
+}
+
 /// Run the interactive TUI
 pub fn run_tui() -> Result<()> {
     let term = Term::stdout();
@@ -11,10 +34,7 @@ pub fn run_tui() -> Result<()> {
     loop {
         term.clear_screen()?;
 
-        println!("{}", style("╔══════════════════════════════════════════════════════╗").cyan());
-        println!("{}", style("║       WinMole - Windows System Optimization          ║").cyan());
-        println!("{}", style("╚══════════════════════════════════════════════════════╝").cyan());
-        println!();
+        print_logo();
 
         let options = vec![
             "System Cleanup      - Clean temp files, browser caches, and system junk",
@@ -267,7 +287,20 @@ pub fn run_tui() -> Result<()> {
             Some(8) | None => {
                 // Exit
                 term.clear_screen()?;
-                println!("{}", style("Thanks for using WinMole!").cyan());
+                println!();
+                println!("{}", style(r#"
+      .--.              .--.
+     ( (`\\            //`) )
+      \ \ \    __    / / /
+       \_\_\  (oo)  /_/_/
+        \\  .-`  `-.  //
+         \\/  \  /  \//
+          |    \/    |
+          \   |  |   /
+           `. |  | .`
+             `----`
+                "#).dim());
+                println!("  {}", style("Thanks for using WinMole! Happy digging! 🐾").cyan().bold());
                 println!();
                 break;
             }

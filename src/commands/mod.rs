@@ -16,9 +16,13 @@ pub fn quick_scan() -> Result<()> {
     let term = Term::stdout();
     term.clear_screen()?;
 
-    println!("{}", style("╔══════════════════════════════════════════════════════╗").cyan());
-    println!("{}", style("║            WinMole Quick Scan                        ║").cyan());
-    println!("{}", style("╚══════════════════════════════════════════════════════╝").cyan());
+    // Mini mole logo
+    println!("{}", style(r#"
+        /\_/\
+       ( o.o )
+        > ^ <   WinMole Quick Scan
+       /|   |\
+      (_|   |_) "#).cyan());
     println!();
 
     // Health score
@@ -72,7 +76,12 @@ pub fn format_size(bytes: u64) -> String {
 /// Print a section header
 pub fn print_header(title: &str) {
     println!();
-    println!("{}", style(format!("═══ {} ═══", title)).cyan().bold());
+    let padding = 40_i32.saturating_sub(title.len() as i32) / 2;
+    let pad_left = " ".repeat(padding.max(0) as usize);
+    let pad_right = " ".repeat((padding + (title.len() as i32 % 2)).max(0) as usize);
+    println!("  {}", style("┌────────────────────────────────────────────┐").cyan());
+    println!("  {} {}{}{} {}", style("│").cyan(), pad_left, style(title).white().bold(), pad_right, style("│").cyan());
+    println!("  {}", style("└────────────────────────────────────────────┘").cyan());
     println!();
 }
 
