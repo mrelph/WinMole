@@ -178,6 +178,21 @@ enum Commands {
         #[arg(short = 'n', long)]
         dry_run: bool,
     },
+
+    /// Scan and fix common system issues
+    Quickfix {
+        /// Action: scan, fix-safe, interactive (default)
+        #[arg(default_value = "interactive")]
+        action: String,
+
+        /// Category filter: storage, disk, maintenance
+        #[arg(short, long)]
+        category: Option<String>,
+
+        /// Preview mode - show what would be fixed without applying
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -248,6 +263,10 @@ fn main() -> Result<()> {
 
         Commands::Debloat { action, app, dry_run } => {
             commands::optimize::debloat::run(&action, app.as_deref(), dry_run)
+        }
+
+        Commands::Quickfix { action, category, dry_run } => {
+            commands::quickfix::run(&action, category.as_deref(), dry_run)
         }
     }
 }

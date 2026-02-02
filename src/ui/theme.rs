@@ -78,6 +78,7 @@ pub mod icons {
     pub const MEMORY: &str = "💾";
     pub const HARDWARE: &str = "🔧";
     pub const DEBLOAT: &str = "🗑";
+    pub const QUICKFIX: &str = "🩹";
 }
 
 // ============================================================================

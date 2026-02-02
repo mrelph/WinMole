@@ -82,6 +82,8 @@ pub fn run_tui() -> Result<()> {
                 style("[8]").cyan().bold(), icons::DIAGNOSE),
             format!("{} {} Quick Scan          - Run quick health check",
                 style("[9]").cyan().bold(), icons::QUICK),
+            format!("{} {} Quick Fix           - Scan and fix common issues",
+                style("[F]").cyan().bold(), icons::QUICKFIX),
             format!("{} {} Performance         - Optimize system performance",
                 style("[0]").cyan().bold(), icons::PERFORMANCE),
             format!("{} {} Exit                - Exit WinMole",
@@ -641,6 +643,11 @@ pub fn run_tui() -> Result<()> {
             }
 
             Some(9) => {
+                // Quick Fix - submenu
+                commands::quickfix::run_submenu(&term)?;
+            }
+
+            Some(10) => {
                 // Performance Optimization - submenu loop
                 loop {
                     term.clear_screen()?;
@@ -720,7 +727,7 @@ pub fn run_tui() -> Result<()> {
                 }
             }
 
-            Some(10) | None => {
+            Some(11) | None => {
                 // Exit
                 term.clear_screen()?;
                 println!();
