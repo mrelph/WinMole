@@ -194,6 +194,13 @@ enum Commands {
         dry_run: bool,
     },
 
+    /// Check for and install WinMole updates
+    SelfUpdate {
+        /// Only check for updates without downloading
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Scan and fix common system issues
     Quickfix {
         /// Action: scan, fix-safe, interactive (default)
@@ -211,6 +218,9 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
+    // Clean up leftover .old binary from a previous self-update
+    commands::self_update::cleanup_old_binary();
+
     // Initialize logging
     tracing_subscriber::fmt::init();
 
@@ -286,6 +296,10 @@ fn main() -> Result<()> {
 
         Commands::Quickfix { action, category, dry_run } => {
             commands::quickfix::run(&action, category.as_deref(), dry_run)
+        }
+
+        Commands::SelfUpdate { check } => {
+            commands::self_update::run(check)
         }
     }
 }

@@ -5,6 +5,7 @@ pub mod disk;
 pub mod optimize;
 pub mod quickfix;
 pub mod registry;
+pub mod self_update;
 pub mod startup;
 pub mod status;
 pub mod updates;

@@ -88,6 +88,8 @@ pub fn run_tui() -> Result<()> {
                 style("[0]").cyan().bold(), icons::PERFORMANCE),
             format!("{} {} Windows Updates     - Manage Windows Update settings",
                 style("[U]").cyan().bold(), icons::UPDATE),
+            format!("{} {} Self Update         - Check for WinMole updates",
+                style("[S]").cyan().bold(), icons::UPDATE),
             format!("{} {} Exit                - Exit WinMole",
                 style("[Q]").red().bold(), icons::EXIT),
         ];
@@ -732,7 +734,12 @@ pub fn run_tui() -> Result<()> {
                 commands::updates::run_submenu(&term)?;
             }
 
-            Some(12) | None => {
+            Some(12) => {
+                // Self Update
+                commands::self_update::run_submenu(&term)?;
+            }
+
+            Some(13) | None => {
                 // Exit
                 term.clear_screen()?;
                 println!();
@@ -1243,7 +1250,7 @@ fn run_debloat_menu(term: &Term) -> Result<()> {
 }
 
 /// Wait for user to press Enter to continue
-fn wait_for_enter() -> Result<()> {
+pub fn wait_for_enter() -> Result<()> {
     println!();
     print_menu_footer();
     println!();
