@@ -86,6 +86,8 @@ pub fn run_tui() -> Result<()> {
                 style("[F]").cyan().bold(), icons::QUICKFIX),
             format!("{} {} Performance         - Optimize system performance",
                 style("[0]").cyan().bold(), icons::PERFORMANCE),
+            format!("{} {} Windows Updates     - Manage Windows Update settings",
+                style("[U]").cyan().bold(), icons::UPDATE),
             format!("{} {} Exit                - Exit WinMole",
                 style("[Q]").red().bold(), icons::EXIT),
         ];
@@ -669,7 +671,7 @@ pub fn run_tui() -> Result<()> {
                             style("[6]").cyan().bold(), icons::QUICK),
                         format!("{} {} Hardware Tweaks        - Advanced (use caution)",
                             style("[7]").cyan().bold(), icons::HARDWARE),
-                        format!("{} {} View Applied Tweaks    - Show current modifications",
+                        format!("{} {} Tweak History          - View/revert applied tweaks",
                             style("[8]").cyan().bold(), icons::INFO),
                         format!("{} {} Back to Main Menu",
                             style("[B]").yellow().bold(), icons::BACK),
@@ -715,10 +717,8 @@ pub fn run_tui() -> Result<()> {
                                     run_category_menu(&term, "Hardware Tweaks", icons::HARDWARE, "hardware")?;
                                 }
                                 7 => {
-                                    // View Applied Tweaks
-                                    theme::print_command_banner("Applied Tweaks", icons::INFO, "Currently applied modifications");
-                                    commands::optimize::run("status", None, None, false)?;
-                                    wait_for_enter()?;
+                                    // Tweak History
+                                    run_tweak_history_menu(&term)?;
                                 }
                                 _ => {}
                             }
@@ -727,7 +727,12 @@ pub fn run_tui() -> Result<()> {
                 }
             }
 
-            Some(11) | None => {
+            Some(11) => {
+                // Windows Updates
+                commands::updates::run_submenu(&term)?;
+            }
+
+            Some(12) | None => {
                 // Exit
                 term.clear_screen()?;
                 println!();
@@ -910,6 +915,10 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
                         theme::print_warning("This tweak requires administrator privileges.");
                         theme::print_info("Please restart WinMole as Administrator.");
                     } else {
+                        commands::optimize::maybe_create_restore_point(
+                            &format!("WinMole: {} tweak '{}'", action, tweak.name)
+                        );
+
                         let result = if state == commands::optimize::common::TweakState::Applied {
                             executor.revert(tweak)
                         } else {
@@ -918,6 +927,11 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
 
                         match result {
                             Ok(r) if r.success => {
+                                if state == commands::optimize::common::TweakState::Applied {
+                                    commands::optimize::record_tweak_reverted(&tweak.id);
+                                } else {
+                                    commands::optimize::record_tweak_applied(&tweak.id, &r);
+                                }
                                 theme::print_success(&format!("Tweak {} successfully!", action.to_lowercase()));
                             }
                             Ok(r) => {
@@ -951,6 +965,10 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
                     .filter(|t| t.risk == commands::optimize::common::TweakRisk::Safe)
                     .collect();
 
+                commands::optimize::maybe_create_restore_point(
+                    &format!("WinMole: Apply all safe {} tweaks", category)
+                );
+
                 let mut success_count = 0;
                 let mut fail_count = 0;
 
@@ -959,6 +977,7 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
                     match executor.apply(tweak) {
                         Ok(r) if r.success => {
                             println!("{}", style("OK").green());
+                            commands::optimize::record_tweak_applied(&tweak.id, &r);
                             success_count += 1;
                         }
                         _ => {
@@ -979,6 +998,153 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
                 );
 
                 wait_for_enter()?;
+            }
+            _ => break,
+        }
+    }
+
+    Ok(())
+}
+
+/// Run the tweak history submenu (view/revert applied tweaks)
+fn run_tweak_history_menu(term: &Term) -> Result<()> {
+    use commands::optimize::{TweakRegistry, TweakExecutor};
+
+    loop {
+        term.clear_screen()?;
+        theme::print_command_banner("Tweak History", icons::INFO, "View and revert applied tweaks");
+        theme::print_breadcrumb(&["Main Menu", "Performance", "Tweak History"]);
+
+        let config = crate::config::WinMoleConfig::load().unwrap_or_default();
+        let applied = &config.applied_tweaks;
+
+        if applied.is_empty() {
+            theme::print_info("No tweaks have been applied yet.");
+            println!();
+            theme::print_info("Apply tweaks from the Performance menu to see them here.");
+            wait_for_enter()?;
+            break;
+        }
+
+        // Display table of applied tweaks
+        let registry = TweakRegistry::new();
+        let rows: Vec<Vec<String>> = applied.iter().map(|at| {
+            let name = registry.get(&at.tweak_id)
+                .map(|t| t.name.clone())
+                .unwrap_or_else(|| format!("{} (unknown)", at.tweak_id));
+            let time = at.applied_at.format("%Y-%m-%d %H:%M").to_string();
+            let has_backup = if at.backup_data.is_some() { "Yes" } else { "No" };
+            vec![name, time, has_backup.to_string()]
+        }).collect();
+
+        theme::print_table(&["Tweak", "Applied At", "Has Backup"], &rows);
+        println!();
+
+        let mut options: Vec<String> = applied.iter().enumerate().map(|(i, at)| {
+            let name = registry.get(&at.tweak_id)
+                .map(|t| t.name.clone())
+                .unwrap_or_else(|| at.tweak_id.clone());
+            format!("{} Revert: {}", style(format!("[{}]", i + 1)).cyan().bold(), name)
+        }).collect();
+        options.push(format!("{} Revert All Applied Tweaks", style("[R]").red().bold()));
+        options.push(format!("{} {} Back", style("[B]").yellow().bold(), icons::BACK));
+
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select action (Esc to go back)")
+            .items(&options)
+            .default(0)
+            .interact_opt()?;
+
+        match selection {
+            Some(idx) if idx < applied.len() => {
+                // Revert individual tweak
+                let tweak_id = applied[idx].tweak_id.clone();
+                let tweak_name = registry.get(&tweak_id)
+                    .map(|t| t.name.clone())
+                    .unwrap_or_else(|| tweak_id.clone());
+
+                let proceed = dialoguer::Confirm::new()
+                    .with_prompt(&format!("Revert '{}'?", tweak_name))
+                    .default(false)
+                    .interact()?;
+
+                if proceed {
+                    if let Some(tweak) = registry.get(&tweak_id) {
+                        let executor = TweakExecutor::new(false);
+                        match executor.revert(tweak) {
+                            Ok(r) if r.success => {
+                                commands::optimize::record_tweak_reverted(&tweak_id);
+                                theme::print_success(&format!("'{}' reverted successfully!", tweak_name));
+                            }
+                            Ok(r) => {
+                                theme::print_error(&format!("Revert failed for '{}'", tweak_name));
+                                if let Some(err) = r.error {
+                                    println!("    {}", style(err).red().dim());
+                                }
+                            }
+                            Err(e) => {
+                                theme::print_error(&format!("Error reverting '{}': {}", tweak_name, e));
+                            }
+                        }
+                    } else {
+                        theme::print_error(&format!(
+                            "Tweak '{}' not found in registry. It may have been removed in an update.",
+                            tweak_id
+                        ));
+                        // Still remove the tracking record
+                        commands::optimize::record_tweak_reverted(&tweak_id);
+                        theme::print_info("Removed tracking record.");
+                    }
+                    wait_for_enter()?;
+                }
+            }
+            Some(idx) if idx == applied.len() => {
+                // Revert all
+                let proceed = dialoguer::Confirm::new()
+                    .with_prompt(&format!("Revert all {} applied tweaks?", applied.len()))
+                    .default(false)
+                    .interact()?;
+
+                if proceed {
+                    commands::optimize::maybe_create_restore_point("WinMole: Revert all tweaks");
+
+                    let executor = TweakExecutor::new(false);
+                    let tweak_ids: Vec<String> = applied.iter().map(|at| at.tweak_id.clone()).collect();
+                    let mut success_count = 0;
+                    let mut fail_count = 0;
+
+                    for tweak_id in &tweak_ids {
+                        if let Some(tweak) = registry.get(tweak_id) {
+                            print!("  {} Reverting {}... ", style(icons::PROGRESS).cyan(), tweak.name);
+                            match executor.revert(tweak) {
+                                Ok(r) if r.success => {
+                                    println!("{}", style("OK").green());
+                                    commands::optimize::record_tweak_reverted(tweak_id);
+                                    success_count += 1;
+                                }
+                                _ => {
+                                    println!("{}", style("FAILED").red());
+                                    fail_count += 1;
+                                }
+                            }
+                        } else {
+                            println!("  {} '{}' not in registry, removing record",
+                                style(icons::WARNING).yellow(), tweak_id);
+                            commands::optimize::record_tweak_reverted(tweak_id);
+                        }
+                    }
+
+                    println!();
+                    theme::print_result_summary(
+                        "ALL TWEAKS REVERTED",
+                        &[
+                            ("Successful", success_count.to_string()),
+                            ("Failed", fail_count.to_string()),
+                        ],
+                        &[],
+                    );
+                    wait_for_enter()?;
+                }
             }
             _ => break,
         }

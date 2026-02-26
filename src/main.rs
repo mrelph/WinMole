@@ -179,6 +179,21 @@ enum Commands {
         dry_run: bool,
     },
 
+    /// Manage Windows Update settings
+    Updates {
+        /// Action: status, history, pending, pause, resume, check, disable-drivers, enable-drivers, disable-restart, enable-restart, defer-features
+        #[arg(default_value = "status")]
+        action: String,
+
+        /// Number of days (for pause, defer-features)
+        #[arg(short, long)]
+        days: Option<u32>,
+
+        /// Preview mode - show what would change without applying
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+    },
+
     /// Scan and fix common system issues
     Quickfix {
         /// Action: scan, fix-safe, interactive (default)
@@ -263,6 +278,10 @@ fn main() -> Result<()> {
 
         Commands::Debloat { action, app, dry_run } => {
             commands::optimize::debloat::run(&action, app.as_deref(), dry_run)
+        }
+
+        Commands::Updates { action, days, dry_run } => {
+            commands::updates::run(&action, days, dry_run)
         }
 
         Commands::Quickfix { action, category, dry_run } => {

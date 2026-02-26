@@ -7,6 +7,7 @@ pub mod quickfix;
 pub mod registry;
 pub mod startup;
 pub mod status;
+pub mod updates;
 pub mod winget;
 
 use anyhow::Result;

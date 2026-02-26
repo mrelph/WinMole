@@ -43,7 +43,7 @@ impl Default for UserSettings {
             confirm_dangerous: true,
             show_advanced_tweaks: false,
             active_profile: None,
-            create_restore_points: false,
+            create_restore_points: true,
             verbose_output: false,
         }
     }

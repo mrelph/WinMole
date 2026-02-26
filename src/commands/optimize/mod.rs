@@ -1004,6 +1004,8 @@ fn apply_profile(
     if dry_run {
         println!("  {} Running in dry-run mode (no changes will be made)", style(icons::INFO).cyan());
         println!();
+    } else {
+        maybe_create_restore_point(&format!("WinMole: Apply {} profile", profile.name));
     }
 
     let mut success_count = 0;
@@ -1017,6 +1019,9 @@ fn apply_profile(
                 Ok(result) => {
                     if result.success {
                         println!("{}", style("OK").green());
+                        if !dry_run {
+                            record_tweak_applied(tweak_id, &result);
+                        }
                         success_count += 1;
                     } else {
                         println!("{}", style("FAILED").red());
@@ -1078,6 +1083,8 @@ fn revert_profile(
     if dry_run {
         println!("  {} Running in dry-run mode (no changes will be made)", style(icons::INFO).cyan());
         println!();
+    } else {
+        maybe_create_restore_point(&format!("WinMole: Revert {} profile", profile.name));
     }
 
     let mut success_count = 0;
@@ -1091,6 +1098,9 @@ fn revert_profile(
                 Ok(result) => {
                     if result.success {
                         println!("{}", style("OK").green());
+                        if !dry_run {
+                            record_tweak_reverted(tweak_id);
+                        }
                         success_count += 1;
                     } else {
                         println!("{}", style("FAILED").red());
@@ -1156,4 +1166,96 @@ pub fn is_elevated() -> bool {
 #[cfg(not(windows))]
 pub fn is_elevated() -> bool {
     false
+}
+
+/// Record that a tweak was successfully applied.
+/// Serializes the result as JSON backup data and persists to config.
+pub fn record_tweak_applied(tweak_id: &str, result: &TweakResult) {
+    let mut config = match crate::config::WinMoleConfig::load() {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("Could not load config for tweak tracking: {}", e);
+            return;
+        }
+    };
+
+    let backup_data = serde_json::to_string(&result.action_results).ok();
+    config.record_applied_tweak(tweak_id, backup_data);
+
+    if let Err(e) = config.save() {
+        tracing::warn!("Could not save config after recording tweak: {}", e);
+    }
+}
+
+/// Record that a tweak was successfully reverted.
+pub fn record_tweak_reverted(tweak_id: &str) {
+    let mut config = match crate::config::WinMoleConfig::load() {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("Could not load config for tweak tracking: {}", e);
+            return;
+        }
+    };
+
+    config.remove_applied_tweak(tweak_id);
+
+    if let Err(e) = config.save() {
+        tracing::warn!("Could not save config after reverting tweak: {}", e);
+    }
+}
+
+/// Optionally create a system restore point based on user settings.
+/// Warns but does NOT block the operation on failure.
+pub fn maybe_create_restore_point(description: &str) {
+    let config = match crate::config::WinMoleConfig::load() {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    if !config.settings.create_restore_points {
+        return;
+    }
+
+    if !is_elevated() {
+        println!(
+            "  {} Skipping restore point (requires administrator)",
+            style(icons::WARNING).yellow()
+        );
+        return;
+    }
+
+    let backup_mgr = match crate::config::backup::BackupManager::new(
+        config.settings.backup_dir.clone(),
+    ) {
+        Ok(mgr) => mgr,
+        Err(e) => {
+            println!(
+                "  {} Could not initialize backup manager: {}",
+                style(icons::WARNING).yellow(),
+                e
+            );
+            return;
+        }
+    };
+
+    match backup_mgr.create_restore_point(description) {
+        Ok(backup_info) => {
+            let mut config = config;
+            config.record_backup(backup_info);
+            if let Err(e) = config.save() {
+                println!(
+                    "  {} Could not save config after restore point: {}",
+                    style(icons::WARNING).yellow(),
+                    e
+                );
+            }
+        }
+        Err(e) => {
+            println!(
+                "  {} Could not create restore point: {} (proceeding anyway)",
+                style(icons::WARNING).yellow(),
+                e
+            );
+        }
+    }
 }

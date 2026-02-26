@@ -10,10 +10,6 @@ keywords = ["windows", "system", "optimization", "cleanup", "cli"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-# TUI
-ratatui = "0.28"
-crossterm = "0.28"
-
 # CLI
 clap = { version = "4.5", features = ["derive"] }
 

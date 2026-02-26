@@ -457,7 +457,7 @@ impl Tweak {
 // ============================================================================
 
 /// Result of applying or reverting a tweak
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TweakResult {
     /// The tweak ID
     pub tweak_id: String,
@@ -473,7 +473,7 @@ pub struct TweakResult {
 }
 
 /// Result of a single action
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionResult {
     /// Description of the action
     pub description: String,
