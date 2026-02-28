@@ -16,10 +16,7 @@ function Show-WinMole {
     [CmdletBinding()]
     param(
         [Parameter()]
-        [switch]$Quick,
-
-        [Parameter()]
-        [switch]$Simple
+        [switch]$Quick
     )
 
     if ($Quick) {
@@ -250,7 +247,7 @@ function Show-WinMole {
             }
         )
 
-        $selection = Show-Menu -Title "WinMole - Windows System Optimization" -Options $menuOptions -Simple:$Simple
+        $selection = Show-Menu -Title "WinMole - Windows System Optimization" -Options $menuOptions
 
         if ($null -eq $selection -or $selection -eq 'Exit') {
             Clear-Host

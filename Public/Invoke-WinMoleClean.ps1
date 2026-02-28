@@ -256,7 +256,7 @@ function Invoke-WinMoleClean {
         $actionWord = if ($isPreview) { 'Would free' } else { 'Freed' }
 
         Write-Host ""
-        Write-ColorOutput "  ${actionWord}: " -ForegroundColor White -NoNewline
+        Write-ColorOutput "  $actionWord: " -ForegroundColor White -NoNewline
         Write-ColorOutput (Format-FileSize $totalSpaceSaved) -ForegroundColor $summaryColor -Style Bold
 
         Write-ColorOutput "  Items processed: " -ForegroundColor White -NoNewline

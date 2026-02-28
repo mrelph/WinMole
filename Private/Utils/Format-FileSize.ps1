@@ -156,9 +156,11 @@ function Get-SizeCategory {
         [long]$Bytes
     )
 
-    if ($Bytes -lt 1KB) { return 'Tiny' }
-    elseif ($Bytes -lt 1MB) { return 'Small' }
-    elseif ($Bytes -lt 100MB) { return 'Medium' }
-    elseif ($Bytes -lt 1GB) { return 'Large' }
-    else { return 'Huge' }
+    return switch ($Bytes) {
+        { $_ -lt 1KB }  { 'Tiny' }
+        { $_ -lt 1MB }  { 'Small' }
+        { $_ -lt 100MB } { 'Medium' }
+        { $_ -lt 1GB }  { 'Large' }
+        default { 'Huge' }
+    }
 }
