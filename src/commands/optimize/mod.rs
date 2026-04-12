@@ -163,7 +163,9 @@ impl TweakExecutor {
             }
         }
 
-        Ok(if applied_count == 0 {
+        Ok(if total_count == 0 {
+            TweakState::Unknown
+        } else if applied_count == 0 {
             TweakState::NotApplied
         } else if applied_count == total_count {
             TweakState::Applied
@@ -457,8 +459,7 @@ impl TweakExecutor {
 
         match hkey.open_subkey(path) {
             Ok(key) => {
-                let result: Result<String, _> = key.get_value(name);
-                Ok(result.is_ok())
+                Ok(key.get_raw_value(name).is_ok())
             }
             Err(_) => Ok(false),
         }
@@ -568,11 +569,20 @@ impl TweakExecutor {
 
         let output_str = String::from_utf8_lossy(&output.stdout);
 
+        match expected {
+            ServiceStartupType::AutomaticDelayed => {
+                return Ok(output_str.contains("AUTO_START") && output_str.contains("DELAYED"));
+            }
+            ServiceStartupType::Automatic => {
+                return Ok(output_str.contains("AUTO_START") && !output_str.contains("DELAYED"));
+            }
+            _ => {}
+        }
+
         let expected_pattern = match expected {
-            ServiceStartupType::Automatic => "AUTO_START",
-            ServiceStartupType::AutomaticDelayed => "AUTO_START", // Check delayed separately
             ServiceStartupType::Manual => "DEMAND_START",
             ServiceStartupType::Disabled => "DISABLED",
+            _ => unreachable!(),
         };
 
         Ok(output_str.contains(expected_pattern))
@@ -652,7 +662,9 @@ impl TweakExecutor {
         }
 
         let output_str = String::from_utf8_lossy(&output.stdout);
-        let is_enabled = output_str.contains("Status:") && !output_str.contains("Disabled");
+        let is_enabled = output_str.lines().any(|line| {
+            line.trim().starts_with("Scheduled Task State:") && line.contains("Enabled")
+        });
 
         Ok(is_enabled == expected_enabled)
     }
@@ -805,15 +817,16 @@ impl TweakExecutor {
             format!("Remove AppX package: {}", package_pattern)
         };
 
+        let safe_pattern = package_pattern.replace('\'', "''");
         let script = if provisioned {
             format!(
                 "Get-AppxProvisionedPackage -Online | Where-Object {{ $_.PackageName -like '*{}*' }} | Remove-AppxProvisionedPackage -Online",
-                package_pattern
+                safe_pattern
             )
         } else {
             format!(
                 "Get-AppxPackage -AllUsers | Where-Object {{ $_.Name -like '*{}*' }} | Remove-AppxPackage -AllUsers",
-                package_pattern
+                safe_pattern
             )
         };
 

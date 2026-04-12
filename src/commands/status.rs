@@ -1,5 +1,6 @@
 use anyhow::Result;
 use console::{style, Term};
+use std::cell::Cell;
 use std::thread;
 use std::time::Duration;
 use sysinfo::{System, Networks, Disks};
@@ -9,9 +10,11 @@ use crate::system::get_health_score;
 use crate::ui::theme::{icons, boxes, create_threshold_bar, Trend};
 
 // Store previous values for trend calculation
-static mut PREV_CPU: f32 = 0.0;
-static mut PREV_MEM: f64 = 0.0;
-static mut PREV_DISK: f64 = 0.0;
+thread_local! {
+    static PREV_CPU: Cell<f32> = Cell::new(0.0);
+    static PREV_MEM: Cell<f64> = Cell::new(0.0);
+    static PREV_DISK: Cell<f64> = Cell::new(0.0);
+}
 
 pub fn run(live: bool, interval: u64) -> Result<()> {
     if live {
@@ -120,11 +123,11 @@ fn display_status(term: &Term, show_trends: bool) -> Result<()> {
     let cpu_count = sys.cpus().len();
 
     let cpu_trend = if show_trends {
-        let trend = unsafe {
-            let t = Trend::from_values(cpu_usage as f64, PREV_CPU as f64);
-            PREV_CPU = cpu_usage;
+        let trend = PREV_CPU.with(|c| {
+            let t = Trend::from_values(cpu_usage as f64, c.get() as f64);
+            c.set(cpu_usage);
             t
-        };
+        });
         format!(" {}", trend.styled())
     } else {
         String::new()
@@ -150,11 +153,11 @@ fn display_status(term: &Term, show_trends: bool) -> Result<()> {
     );
 
     let mem_trend = if show_trends {
-        let trend = unsafe {
-            let t = Trend::from_values(mem_percent, PREV_MEM);
-            PREV_MEM = mem_percent;
+        let trend = PREV_MEM.with(|c| {
+            let t = Trend::from_values(mem_percent, c.get());
+            c.set(mem_percent);
             t
-        };
+        });
         format!(" {}", trend.styled())
     } else {
         String::new()
@@ -191,11 +194,11 @@ fn display_status(term: &Term, show_trends: bool) -> Result<()> {
     );
 
     let disk_trend = if show_trends {
-        let trend = unsafe {
-            let t = Trend::from_values(disk_percent, PREV_DISK);
-            PREV_DISK = disk_percent;
+        let trend = PREV_DISK.with(|c| {
+            let t = Trend::from_values(disk_percent, c.get());
+            c.set(disk_percent);
             t
-        };
+        });
         format!(" {}", trend.styled())
     } else {
         String::new()

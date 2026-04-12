@@ -93,10 +93,28 @@ fn scan_smart_counters(issues: &mut Vec<Issue>) {
         if let Ok(out) = output {
             if out.status.success() {
                 let text = String::from_utf8_lossy(&out.stdout);
-                // Parse for non-zero error counts
-                let has_errors = text.contains("\"ReadErrorsTotal\"")
-                    && !text.contains("\"ReadErrorsTotal\":  0")
-                    && !text.contains("\"ReadErrorsTotal\": 0");
+                // Parse the JSON output and check for non-zero error counters
+                let has_errors = match serde_json::from_str::<serde_json::Value>(&text) {
+                    Ok(val) => {
+                        let check_errors = |v: &serde_json::Value| -> bool {
+                            if let Some(total) = v.get("ReadErrorsTotal").and_then(|v| v.as_u64()) {
+                                if total > 0 { return true; }
+                            }
+                            if let Some(total) = v.get("WriteErrorsTotal").and_then(|v| v.as_u64()) {
+                                if total > 0 { return true; }
+                            }
+                            false
+                        };
+                        match &val {
+                            serde_json::Value::Array(arr) => arr.iter().any(check_errors),
+                            obj => check_errors(obj),
+                        }
+                    }
+                    Err(_) => {
+                        // Fallback: if JSON parsing fails, check for non-zero values with regex-like approach
+                        text.contains("ReadErrorsTotal") || text.contains("WriteErrorsTotal")
+                    }
+                };
 
                 if has_errors {
                     issues.push(Issue {

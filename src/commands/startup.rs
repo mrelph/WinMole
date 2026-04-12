@@ -420,9 +420,10 @@ fn get_file_info(command: &str) -> (String, bool) {
         command.split_whitespace().next().unwrap_or("")
     };
 
-    // Check if file is signed (simplified - would need proper signature verification)
-    let is_microsoft = exe_path.to_lowercase().contains("microsoft")
-        || exe_path.to_lowercase().contains("windows");
+    // Check publisher based on path heuristics
+    let path_lower = exe_path.to_lowercase();
+    let is_microsoft = path_lower.contains("microsoft")
+        || path_lower.contains("windows");
 
     let publisher = if is_microsoft {
         "Microsoft".to_string()
@@ -430,7 +431,12 @@ fn get_file_info(command: &str) -> (String, bool) {
         "Unknown".to_string()
     };
 
-    (publisher, is_microsoft)
+    // Default to signed (true) so non-Microsoft programs get categorized as
+    // "Third-party" rather than "Unknown". Actual authenticode verification
+    // would require a dedicated sigcheck implementation.
+    let is_signed = true;
+
+    (publisher, is_signed)
 }
 
 #[cfg(windows)]

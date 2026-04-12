@@ -393,6 +393,26 @@ fn export_packages() -> Result<()> {
     Ok(())
 }
 
+/// Safely slice a string by byte positions, falling back to char-by-char extraction
+/// if the positions don't land on char boundaries.
+fn safe_slice(s: &str, start: usize, end: usize) -> String {
+    let end = end.min(s.len());
+    if start >= end {
+        return String::new();
+    }
+    if s.is_char_boundary(start) && s.is_char_boundary(end) {
+        s[start..end].trim().to_string()
+    } else {
+        // Fall back to char-by-char extraction
+        s.chars()
+            .skip(start.min(s.len()))
+            .take(end.saturating_sub(start))
+            .collect::<String>()
+            .trim()
+            .to_string()
+    }
+}
+
 /// Get list of packages with available updates
 /// Returns: Vec<(name, id, current_version, available_version)>
 fn get_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
@@ -433,18 +453,18 @@ fn get_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
 
         if in_table && !line.trim().is_empty() && !line.contains("upgrades available") && line.len() > version_end {
             // Parse columns based on positions
-            let name = line[..name_end.min(line.len())].trim().to_string();
-            let id = if id_end > name_end && id_end <= line.len() {
-                line[name_end..id_end.min(line.len())].trim().to_string()
+            let name = safe_slice(line, 0, name_end);
+            let id = if id_end > name_end {
+                safe_slice(line, name_end, id_end)
             } else {
                 continue;
             };
-            let version = if version_end > id_end && version_end <= line.len() {
-                line[id_end..version_end.min(line.len())].trim().to_string()
+            let version = if version_end > id_end {
+                safe_slice(line, id_end, version_end)
             } else {
                 continue;
             };
-            let available = line[version_end.min(line.len())..].trim().split_whitespace().next().unwrap_or("").to_string();
+            let available = safe_slice(line, version_end, line.len()).split_whitespace().next().unwrap_or("").to_string();
 
             if !name.is_empty() && !id.is_empty() && !available.is_empty() {
                 packages.push((name, id, version, available));
@@ -490,13 +510,13 @@ fn get_installed_packages() -> Result<Vec<(String, String, String)>> {
         }
 
         if in_table && !line.trim().is_empty() && line.len() > id_end {
-            let name = line[..name_end.min(line.len())].trim().to_string();
+            let name = safe_slice(line, 0, name_end);
             let id = if id_end > name_end {
-                line[name_end..id_end.min(line.len())].trim().to_string()
+                safe_slice(line, name_end, id_end)
             } else {
                 continue;
             };
-            let version = line[id_end.min(line.len())..].trim().split_whitespace().next().unwrap_or("").to_string();
+            let version = safe_slice(line, id_end, line.len()).split_whitespace().next().unwrap_or("").to_string();
 
             if !name.is_empty() && !id.is_empty() {
                 packages.push((name, id, version));

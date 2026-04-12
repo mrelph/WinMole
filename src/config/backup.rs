@@ -130,7 +130,7 @@ impl BackupManager {
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
             // Check if it's just a "already created recently" error
-            if error.contains("1" /* Recent restore point exists */) {
+            if error.contains("0x80042306") || error.to_lowercase().contains("within the past 24 hours") || error.to_lowercase().contains("already been created") {
                 println!(
                     "  {} A restore point was created recently, skipping",
                     style(icons::INFO).yellow()

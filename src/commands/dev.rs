@@ -2,7 +2,7 @@ use anyhow::Result;
 use console::style;
 use dialoguer::{theme::ColorfulTheme, MultiSelect};
 use indicatif::{ProgressBar, ProgressStyle};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
@@ -126,7 +126,13 @@ pub fn run(path: &str, types: &[String], older_than: Option<u32>, dry_run: bool,
         types.iter().map(|s| s.as_str()).collect()
     };
 
-    // Scan for artifacts
+    // Scan for artifacts, tracking matched paths to skip nested duplicates.
+    // When a parent directory (e.g. node_modules) is matched, any nested copies
+    // inside it are skipped because deleting the parent removes them too,
+    // and they would otherwise cause phantom errors.
+    let artifact_names: HashSet<&str> = target_types.iter().copied().collect();
+    let mut matched_paths: Vec<PathBuf> = Vec::new();
+
     for entry in WalkDir::new(&path)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -135,25 +141,29 @@ pub fn run(path: &str, types: &[String], older_than: Option<u32>, dry_run: bool,
         let dir_name = entry.file_name().to_string_lossy();
         let dir_path = entry.path();
 
-        for target_type in &target_types {
-            if dir_name == *target_type {
-                pb.set_message(format!("Found: {}", dir_path.display()));
+        // Skip entries nested inside an already-matched artifact directory
+        if matched_paths.iter().any(|p| dir_path.starts_with(p)) {
+            continue;
+        }
 
-                // Check age if specified
-                if let Some(cutoff_time) = cutoff {
-                    if let Ok(metadata) = fs::metadata(dir_path) {
-                        if let Ok(modified) = metadata.modified() {
-                            if modified > cutoff_time {
-                                continue; // Skip if not old enough
-                            }
+        if artifact_names.contains(dir_name.as_ref()) {
+            pb.set_message(format!("Found: {}", dir_path.display()));
+
+            // Check age if specified
+            if let Some(cutoff_time) = cutoff {
+                if let Ok(metadata) = fs::metadata(dir_path) {
+                    if let Ok(modified) = metadata.modified() {
+                        if modified > cutoff_time {
+                            continue; // Skip if not old enough
                         }
                     }
                 }
-
-                // Calculate size
-                let size = calculate_dir_size(dir_path);
-                found_artifacts.push((dir_path.to_path_buf(), target_type.to_string(), size));
             }
+
+            // Calculate size
+            let size = calculate_dir_size(dir_path);
+            found_artifacts.push((dir_path.to_path_buf(), dir_name.to_string(), size));
+            matched_paths.push(dir_path.to_path_buf());
         }
     }
 

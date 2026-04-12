@@ -92,7 +92,7 @@ fn show_update_status() -> Result<()> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     if let Ok(wu_key) = hklm.open_subkey("SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate") {
         // Check pause dates
-        if let Ok(val) = wu_key.get_value::<String, _>("PausedQualityDateStart") {
+        if let Ok(val) = wu_key.get_value::<String, _>("PauseQualityUpdatesStartTime") {
             status.is_paused = true;
             status.pause_until = Some(val);
         }
@@ -352,8 +352,8 @@ fn pause_updates(days: u32, dry_run: bool) -> Result<()> {
     let now = chrono::Local::now();
     let pause_date = now.format("%Y-%m-%d").to_string();
 
-    wu_key.set_value("PausedQualityDateStart", &pause_date)?;
-    wu_key.set_value("PausedFeatureUpdatesStartTime", &pause_date)?;
+    wu_key.set_value("PauseQualityUpdatesStartTime", &pause_date)?;
+    wu_key.set_value("PauseFeatureUpdatesStartTime", &pause_date)?;
 
     println!(
         "  {} Updates paused starting {} for {} days",
@@ -410,8 +410,8 @@ fn resume_updates(dry_run: bool) -> Result<()> {
         "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
         KEY_ALL_ACCESS,
     ) {
-        let _ = wu_key.delete_value("PausedQualityDateStart");
-        let _ = wu_key.delete_value("PausedFeatureUpdatesStartTime");
+        let _ = wu_key.delete_value("PauseQualityUpdatesStartTime");
+        let _ = wu_key.delete_value("PauseFeatureUpdatesStartTime");
     }
 
     println!(

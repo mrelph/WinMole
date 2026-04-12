@@ -5,6 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::commands::format_size;
+use crate::commands::optimize::is_elevated;
 use crate::system::cleanup::{get_temp_folders, get_browser_caches, CleanupTarget};
 use crate::ui::theme::{self, icons, boxes};
 
@@ -250,9 +251,11 @@ fn clean_target(target: &CleanupTarget) -> Result<(u64, u64)> {
 
     if target.is_file {
         if let Ok(metadata) = fs::metadata(&target.path) {
-            cleaned_size = metadata.len();
-            cleaned_files = 1;
-            let _ = fs::remove_file(&target.path);
+            let size = metadata.len();
+            match fs::remove_file(&target.path) {
+                Ok(_) => { cleaned_size += size; cleaned_files += 1; }
+                Err(_) => {}
+            }
         }
     } else if let Some(ref pattern) = target.pattern {
         // Clean only files matching pattern
@@ -262,9 +265,11 @@ fn clean_target(target: &CleanupTarget) -> Result<(u64, u64)> {
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                     if name.contains(pattern.trim_start_matches('*').trim_end_matches('*')) {
                         if let Ok(metadata) = fs::metadata(&path) {
-                            cleaned_size += metadata.len();
-                            cleaned_files += 1;
-                            let _ = fs::remove_file(&path);
+                            let size = metadata.len();
+                            match fs::remove_file(&path) {
+                                Ok(_) => { cleaned_size += size; cleaned_files += 1; }
+                                Err(_) => {}
+                            }
                         }
                     }
                 }
@@ -277,15 +282,18 @@ fn clean_target(target: &CleanupTarget) -> Result<(u64, u64)> {
                 let path = entry.path();
                 if let Ok(metadata) = fs::metadata(&path) {
                     if metadata.is_dir() {
-                        if let Ok(size) = dir_size(&path) {
-                            cleaned_size += size;
+                        let size = dir_size(&path).unwrap_or(0);
+                        match fs::remove_dir_all(&path) {
+                            Ok(_) => { cleaned_size += size; cleaned_files += 1; }
+                            Err(_) => {}
                         }
-                        let _ = fs::remove_dir_all(&path);
                     } else {
-                        cleaned_size += metadata.len();
-                        let _ = fs::remove_file(&path);
+                        let size = metadata.len();
+                        match fs::remove_file(&path) {
+                            Ok(_) => { cleaned_size += size; cleaned_files += 1; }
+                            Err(_) => {}
+                        }
                     }
-                    cleaned_files += 1;
                 }
             }
         }
@@ -332,35 +340,3 @@ fn get_large_files(path: &PathBuf, limit: usize) -> Vec<(PathBuf, u64)> {
     files
 }
 
-fn is_elevated() -> bool {
-    #[cfg(windows)]
-    {
-        use std::mem;
-        use windows::Win32::Foundation::HANDLE;
-        use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
-        use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
-
-        unsafe {
-            let mut token: HANDLE = HANDLE::default();
-            if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).is_ok() {
-                let mut elevation = TOKEN_ELEVATION::default();
-                let mut size = mem::size_of::<TOKEN_ELEVATION>() as u32;
-                if GetTokenInformation(
-                    token,
-                    TokenElevation,
-                    Some(&mut elevation as *mut _ as *mut _),
-                    size,
-                    &mut size,
-                ).is_ok() {
-                    return elevation.TokenIsElevated != 0;
-                }
-            }
-        }
-        false
-    }
-
-    #[cfg(not(windows))]
-    {
-        false
-    }
-}

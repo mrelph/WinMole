@@ -406,7 +406,7 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
                 path: "Software\\Microsoft\\GameBar".to_string(),
                 name: "AllowAutoGameMode".to_string(),
                 value_type: RegistryValueType::Dword,
-                value: RegistryValue::Dword(1),
+                value: RegistryValue::Dword(0),
                 default_value: None,
             },
             TweakAction::RegistrySet {
@@ -414,7 +414,7 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
                 path: "Software\\Microsoft\\GameBar".to_string(),
                 name: "AutoGameModeEnabled".to_string(),
                 value_type: RegistryValueType::Dword,
-                value: RegistryValue::Dword(1),
+                value: RegistryValue::Dword(0),
                 default_value: None,
             },
         ],

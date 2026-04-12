@@ -424,9 +424,10 @@ pub fn remove_app(name_pattern: &str, dry_run: bool) -> Result<bool> {
         return Ok(true);
     }
 
+    let safe_pattern = name_pattern.replace('\'', "''");
     let script = format!(
         "Get-AppxPackage -AllUsers | Where-Object {{ $_.Name -like '*{}*' }} | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue",
-        name_pattern
+        safe_pattern
     );
 
     let output = Command::new("powershell")
@@ -453,9 +454,10 @@ pub fn remove_provisioned_app(name_pattern: &str, dry_run: bool) -> Result<bool>
         return Ok(true);
     }
 
+    let safe_pattern = name_pattern.replace('\'', "''");
     let script = format!(
         "Get-AppxProvisionedPackage -Online | Where-Object {{ $_.PackageName -like '*{}*' }} | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue",
-        name_pattern
+        safe_pattern
     );
 
     let output = Command::new("powershell")

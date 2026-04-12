@@ -73,12 +73,14 @@ fn scan_delivery_optimization(issues: &mut Vec<Issue>) {
                 } else {
                     IssueSeverity::Low
                 },
-                fix_risk: FixRisk::Safe,
+                fix_risk: FixRisk::Moderate,
                 estimated_savings: Some(size),
                 requires_admin: true,
-                fix_actions: vec![FixAction::CleanDirectory {
-                    path: path.to_string(),
-                    description: "Delete Delivery Optimization cache contents".to_string(),
+                // Use the proper PowerShell cmdlet instead of raw directory deletion,
+                // as the Delivery Optimization service may be actively using the cache.
+                fix_actions: vec![FixAction::PowerShellCommand {
+                    script: "Delete-DeliveryOptimizationCache -Force".to_string(),
+                    description: "Clear Delivery Optimization cache via system cmdlet".to_string(),
                     requires_admin: true,
                 }],
                 auto_fixable: true,

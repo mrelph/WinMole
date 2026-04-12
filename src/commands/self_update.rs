@@ -156,7 +156,9 @@ pub fn run_submenu(term: &console::Term) -> Result<()> {
 /// Remove leftover `.old` binary from a previous update. Best-effort, called at startup.
 pub fn cleanup_old_binary() {
     if let Ok(exe_path) = std::env::current_exe() {
-        let old_path = exe_path.with_extension("exe.old");
+        let old_path = exe_path.with_file_name(
+            format!("{}.old", exe_path.file_name().unwrap().to_string_lossy())
+        );
         if old_path.exists() {
             let _ = std::fs::remove_file(&old_path);
         }
@@ -337,6 +339,8 @@ async fn download_release(url: &str, size: u64) -> Result<Vec<u8>> {
         .progress_chars("█▓░"),
     );
 
+    const MAX_BINARY_SIZE: usize = 100 * 1024 * 1024; // 100 MB
+
     let mut stream = response.bytes_stream();
     let mut buffer = Vec::with_capacity(size as usize);
 
@@ -344,6 +348,9 @@ async fn download_release(url: &str, size: u64) -> Result<Vec<u8>> {
         let chunk = chunk.context("Error while downloading")?;
         pb.inc(chunk.len() as u64);
         buffer.extend_from_slice(&chunk);
+        if buffer.len() > MAX_BINARY_SIZE {
+            anyhow::bail!("Download exceeded maximum allowed size of 100 MB");
+        }
     }
 
     pb.finish_with_message("Download complete");
@@ -359,7 +366,9 @@ fn replace_executable(binary: &[u8]) -> Result<()> {
     use std::fs;
 
     let exe_path = std::env::current_exe().context("Failed to determine current executable path")?;
-    let old_path = exe_path.with_extension("exe.old");
+    let old_path = exe_path.with_file_name(
+        format!("{}.old", exe_path.file_name().unwrap().to_string_lossy())
+    );
 
     println!("  {} Installing update...", style(icons::PROGRESS).cyan());
 

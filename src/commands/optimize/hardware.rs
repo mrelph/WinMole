@@ -254,8 +254,8 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
             path: "SYSTEM\\CurrentControlSet\\Services\\disk".to_string(),
             name: "EnableWriteCache".to_string(),
             value_type: RegistryValueType::Dword,
-            value: RegistryValue::Dword(1),
-            default_value: None,
+            value: RegistryValue::Dword(0),
+            default_value: Some(RegistryValue::Dword(0)),
         }],
         tags: vec!["hardware".to_string(), "disk".to_string()],
     });
