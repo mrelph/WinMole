@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+#[cfg(windows)]
 use crate::commands::print_warning;
 use crate::ui::theme;
 
@@ -8,7 +9,6 @@ pub fn run(_mode: &str, _categories: &[String], _backup_path: Option<&str>) -> R
 
     #[cfg(not(windows))]
     {
-        print_warning("Registry cleaning is only available on Windows");
         return Ok(());
     }
 

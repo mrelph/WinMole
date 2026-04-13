@@ -2,7 +2,6 @@ use anyhow::Result;
 #[cfg(windows)]
 use console::style;
 
-use crate::commands::print_warning;
 #[cfg(windows)]
 use crate::commands::print_error;
 use crate::ui::theme;
@@ -109,7 +108,6 @@ pub fn run(action: &str, name: Option<&str>, show_impact: bool) -> Result<()> {
 
     #[cfg(not(windows))]
     {
-        print_warning("Startup optimization is only available on Windows");
         return Ok(());
     }
 
@@ -371,13 +369,44 @@ fn disable_item(name: Option<&str>) -> Result<()> {
 
     theme::print_info(&format!("Disabling: {}", name));
 
-    // Note: Actually disabling requires modifying StartupApproved registry key
-    // or renaming the file. For safety, we just inform the user.
-    println!();
-    print_warning("For safety, manual action required:");
-    println!("  1. Open Task Manager (Ctrl+Shift+Esc)");
-    println!("  2. Go to the Startup tab");
-    println!("  3. Find '{}' and click Disable", name);
+    use winreg::enums::*;
+    use winreg::RegKey;
+
+    let startup_approved_path = "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
+
+    // Try HKCU first, then HKLM
+    let hives: [(winreg::HKEY, &str); 2] = [
+        (HKEY_CURRENT_USER, "HKCU"),
+        (HKEY_LOCAL_MACHINE, "HKLM"),
+    ];
+
+    for (hkey, hive_name) in &hives {
+        let root = RegKey::predef(*hkey);
+        if let Ok(approved_key) = root.open_subkey_with_flags(startup_approved_path, KEY_ALL_ACCESS) {
+            if let Ok(mut reg_value) = approved_key.get_raw_value(name) {
+                if !reg_value.bytes.is_empty() {
+                    reg_value.bytes[0] = 0x03;
+                    match approved_key.set_raw_value(name, &reg_value) {
+                        Ok(_) => {
+                            theme::print_success(&format!(
+                                "Disabled '{}' in {}\\StartupApproved\\Run", name, hive_name
+                            ));
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            theme::print_warning(&format!(
+                                "Failed to write registry value in {}: {}", hive_name, e
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    theme::print_warning(&format!(
+        "'{}' was not found in StartupApproved\\Run (HKCU or HKLM)", name
+    ));
 
     Ok(())
 }
@@ -394,11 +423,44 @@ fn enable_item(name: Option<&str>) -> Result<()> {
 
     theme::print_info(&format!("Enabling: {}", name));
 
-    println!();
-    print_warning("For safety, manual action required:");
-    println!("  1. Open Task Manager (Ctrl+Shift+Esc)");
-    println!("  2. Go to the Startup tab");
-    println!("  3. Find '{}' and click Enable", name);
+    use winreg::enums::*;
+    use winreg::RegKey;
+
+    let startup_approved_path = "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
+
+    // Try HKCU first, then HKLM
+    let hives: [(winreg::HKEY, &str); 2] = [
+        (HKEY_CURRENT_USER, "HKCU"),
+        (HKEY_LOCAL_MACHINE, "HKLM"),
+    ];
+
+    for (hkey, hive_name) in &hives {
+        let root = RegKey::predef(*hkey);
+        if let Ok(approved_key) = root.open_subkey_with_flags(startup_approved_path, KEY_ALL_ACCESS) {
+            if let Ok(mut reg_value) = approved_key.get_raw_value(name) {
+                if !reg_value.bytes.is_empty() {
+                    reg_value.bytes[0] = 0x02;
+                    match approved_key.set_raw_value(name, &reg_value) {
+                        Ok(_) => {
+                            theme::print_success(&format!(
+                                "Enabled '{}' in {}\\StartupApproved\\Run", name, hive_name
+                            ));
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            theme::print_warning(&format!(
+                                "Failed to write registry value in {}: {}", hive_name, e
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    theme::print_warning(&format!(
+        "'{}' was not found in StartupApproved\\Run (HKCU or HKLM)", name
+    ));
 
     Ok(())
 }

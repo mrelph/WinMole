@@ -150,12 +150,6 @@ fn show_update_status() -> Result<()> {
 
 #[cfg(not(windows))]
 fn show_update_status() -> Result<()> {
-    theme::print_section_header("Windows Update Status");
-    println!(
-        "  {} Windows Update status is only available on Windows",
-        style(icons::INFO).cyan()
-    );
-    println!();
     Ok(())
 }
 
@@ -213,12 +207,6 @@ fn show_update_history() -> Result<()> {
 
 #[cfg(not(windows))]
 fn show_update_history() -> Result<()> {
-    theme::print_section_header("Windows Update History");
-    println!(
-        "  {} Update history is only available on Windows",
-        style(icons::INFO).cyan()
-    );
-    println!();
     Ok(())
 }
 
@@ -306,12 +294,6 @@ try {
 
 #[cfg(not(windows))]
 fn show_pending_updates() -> Result<()> {
-    theme::print_section_header("Pending Windows Updates");
-    println!(
-        "  {} Pending updates check is only available on Windows",
-        style(icons::INFO).cyan()
-    );
-    println!();
     Ok(())
 }
 
@@ -363,21 +345,7 @@ fn pause_updates(days: u32, dry_run: bool) -> Result<()> {
 }
 
 #[cfg(not(windows))]
-fn pause_updates(days: u32, dry_run: bool) -> Result<()> {
-    theme::print_section_header(&format!("Pause Updates for {} Days", days));
-    if dry_run {
-        println!(
-            "  {} [DRY RUN] Would pause updates for {} days",
-            style(icons::INFO).cyan(),
-            days
-        );
-    } else {
-        println!(
-            "  {} Pausing updates is only available on Windows",
-            style(icons::INFO).cyan()
-        );
-    }
-    println!();
+fn pause_updates(_days: u32, _dry_run: bool) -> Result<()> {
     Ok(())
 }
 
@@ -416,20 +384,7 @@ fn resume_updates(dry_run: bool) -> Result<()> {
 }
 
 #[cfg(not(windows))]
-fn resume_updates(dry_run: bool) -> Result<()> {
-    theme::print_section_header("Resume Windows Updates");
-    if dry_run {
-        println!(
-            "  {} [DRY RUN] Would resume updates",
-            style(icons::INFO).cyan()
-        );
-    } else {
-        println!(
-            "  {} Resuming updates is only available on Windows",
-            style(icons::INFO).cyan()
-        );
-    }
-    println!();
+fn resume_updates(_dry_run: bool) -> Result<()> {
     Ok(())
 }
 
@@ -476,20 +431,7 @@ fn trigger_update_check(dry_run: bool) -> Result<()> {
 }
 
 #[cfg(not(windows))]
-fn trigger_update_check(dry_run: bool) -> Result<()> {
-    theme::print_section_header("Check for Updates");
-    if dry_run {
-        println!(
-            "  {} [DRY RUN] Would trigger update check",
-            style(icons::INFO).cyan()
-        );
-    } else {
-        println!(
-            "  {} Update check is only available on Windows",
-            style(icons::INFO).cyan()
-        );
-    }
-    println!();
+fn trigger_update_check(_dry_run: bool) -> Result<()> {
     Ok(())
 }
 
@@ -541,22 +483,7 @@ fn toggle_driver_updates(exclude: bool, dry_run: bool) -> Result<()> {
 }
 
 #[cfg(not(windows))]
-fn toggle_driver_updates(exclude: bool, dry_run: bool) -> Result<()> {
-    let action = if exclude { "Exclude" } else { "Include" };
-    theme::print_section_header(&format!("{} Driver Updates", action));
-    if dry_run {
-        println!(
-            "  {} [DRY RUN] Would {} driver updates",
-            style(icons::INFO).cyan(),
-            action.to_lowercase()
-        );
-    } else {
-        println!(
-            "  {} Driver update control is only available on Windows",
-            style(icons::INFO).cyan()
-        );
-    }
-    println!();
+fn toggle_driver_updates(_exclude: bool, _dry_run: bool) -> Result<()> {
     Ok(())
 }
 
@@ -608,22 +535,7 @@ fn toggle_auto_restart(disable: bool, dry_run: bool) -> Result<()> {
 }
 
 #[cfg(not(windows))]
-fn toggle_auto_restart(disable: bool, dry_run: bool) -> Result<()> {
-    let action = if disable { "Disable" } else { "Enable" };
-    theme::print_section_header(&format!("{} Auto-Restart", action));
-    if dry_run {
-        println!(
-            "  {} [DRY RUN] Would {} auto-restart",
-            style(icons::INFO).cyan(),
-            action.to_lowercase()
-        );
-    } else {
-        println!(
-            "  {} Auto-restart control is only available on Windows",
-            style(icons::INFO).cyan()
-        );
-    }
-    println!();
+fn toggle_auto_restart(_disable: bool, _dry_run: bool) -> Result<()> {
     Ok(())
 }
 
@@ -670,22 +582,7 @@ fn defer_feature_updates(days: u32, dry_run: bool) -> Result<()> {
 }
 
 #[cfg(not(windows))]
-fn defer_feature_updates(days: u32, dry_run: bool) -> Result<()> {
-    let days = days.min(365);
-    theme::print_section_header(&format!("Defer Feature Updates ({} days)", days));
-    if dry_run {
-        println!(
-            "  {} [DRY RUN] Would defer feature updates by {} days",
-            style(icons::INFO).cyan(),
-            days
-        );
-    } else {
-        println!(
-            "  {} Feature update deferral is only available on Windows",
-            style(icons::INFO).cyan()
-        );
-    }
-    println!();
+fn defer_feature_updates(_days: u32, _dry_run: bool) -> Result<()> {
     Ok(())
 }
 

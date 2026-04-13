@@ -406,17 +406,5 @@ fn replace_executable(binary: &[u8]) -> Result<()> {
 
 #[cfg(not(windows))]
 fn replace_executable(_binary: &[u8]) -> Result<()> {
-    println!();
-    super::print_warning(
-        "Automatic binary replacement is only supported on Windows.",
-    );
-    println!(
-        "  {} Download the latest release manually from:",
-        style(icons::INFO).cyan()
-    );
-    println!(
-        "  {}",
-        style("https://github.com/mrelph/WinMole/releases").cyan().underlined()
-    );
-    Ok(())
+    anyhow::bail!("Binary replacement requires Windows")
 }

@@ -468,8 +468,6 @@ fn analyze_services() -> Result<()> {
 
 #[cfg(not(windows))]
 fn analyze_services() -> Result<()> {
-    theme::print_section_header("Service Analysis");
-    theme::print_warning("Service analysis is only available on Windows");
     Ok(())
 }
 
