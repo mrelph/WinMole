@@ -79,13 +79,6 @@ impl TweakRegistry {
             .collect()
     }
 
-    /// Get tweaks by tag
-    pub fn by_tag(&self, tag: &str) -> Vec<&Tweak> {
-        self.tweaks
-            .values()
-            .filter(|t| t.tags.iter().any(|t| t == tag))
-            .collect()
-    }
 }
 
 impl Default for TweakRegistry {
@@ -490,6 +483,7 @@ impl TweakExecutor {
     }
 
     #[cfg(not(windows))]
+    #[allow(dead_code)]
     fn get_registry_value_string(&self, _key: &(), _name: &str) -> Option<String> {
         None
     }

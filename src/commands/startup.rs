@@ -1,8 +1,11 @@
 use anyhow::Result;
+#[cfg(windows)]
 use console::style;
 
-use crate::commands::{print_success, print_warning, print_info, print_error};
-use crate::ui::theme::{self, icons};
+use crate::commands::print_warning;
+#[cfg(windows)]
+use crate::commands::print_error;
+use crate::ui::theme;
 
 /// Simplified startup item info for UI selection
 #[derive(Clone)]
@@ -100,6 +103,7 @@ fn get_startup_items_windows() -> Vec<StartupItemInfo> {
     items
 }
 
+#[allow(unused_variables)]
 pub fn run(action: &str, name: Option<&str>, show_impact: bool) -> Result<()> {
     theme::print_section_header("Startup Optimizer");
 
@@ -126,10 +130,10 @@ pub fn run(action: &str, name: Option<&str>, show_impact: bool) -> Result<()> {
                 println!("    enable  - Enable a startup item");
             }
         }
-    }
 
-    println!();
-    Ok(())
+        println!();
+        Ok(())
+    }
 }
 
 #[cfg(windows)]
@@ -278,7 +282,7 @@ fn list_startup_items(show_impact: bool) -> Result<()> {
 
 #[cfg(windows)]
 fn analyze_boot_impact() -> Result<()> {
-    print_info("Boot impact analysis");
+    theme::print_info("Boot impact analysis");
     println!();
 
     // Get startup items
@@ -365,7 +369,7 @@ fn disable_item(name: Option<&str>) -> Result<()> {
         }
     };
 
-    print_info(&format!("Disabling: {}", name));
+    theme::print_info(&format!("Disabling: {}", name));
 
     // Note: Actually disabling requires modifying StartupApproved registry key
     // or renaming the file. For safety, we just inform the user.
@@ -388,7 +392,7 @@ fn enable_item(name: Option<&str>) -> Result<()> {
         }
     };
 
-    print_info(&format!("Enabling: {}", name));
+    theme::print_info(&format!("Enabling: {}", name));
 
     println!();
     print_warning("For safety, manual action required:");

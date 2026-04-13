@@ -1,10 +1,9 @@
 use anyhow::Result;
-use console::style;
 
-use crate::commands::{print_success, print_warning, print_info};
-use crate::ui::theme::{self, icons};
+use crate::commands::print_warning;
+use crate::ui::theme;
 
-pub fn run(mode: &str, categories: &[String], backup_path: Option<&str>) -> Result<()> {
+pub fn run(_mode: &str, _categories: &[String], _backup_path: Option<&str>) -> Result<()> {
     theme::print_section_header("Registry Cleaner");
 
     #[cfg(not(windows))]
@@ -34,13 +33,12 @@ fn run_windows(mode: &str, categories: &[String], backup_path: Option<&str>) -> 
 
     // Scan categories
     for category in categories {
-        print_info(&format!("Scanning: {}...", category));
+        theme::print_info(&format!("Scanning: {}...", category));
 
         let issues = match category.as_str() {
             "invalid_paths" | "invalidpaths" => scan_invalid_paths()?,
             "missing_dlls" | "missingdlls" => scan_missing_dlls()?,
             "orphaned_software" | "orphanedsoftware" => scan_orphaned_software()?,
-            "empty_keys" | "emptykeys" => scan_empty_keys()?,
             _ => {
                 print_warning(&format!("Unknown category: {}", category));
                 Vec::new()
@@ -105,7 +103,7 @@ fn run_windows(mode: &str, categories: &[String], backup_path: Option<&str>) -> 
             )).to_string_lossy().to_string()
         });
 
-        print_info(&format!("Creating backup: {}", backup_file));
+        theme::print_info(&format!("Creating backup: {}", backup_file));
 
         let mut backup = File::create(&backup_file)?;
         writeln!(backup, "Windows Registry Editor Version 5.00")?;
@@ -243,13 +241,6 @@ fn scan_orphaned_software() -> Result<Vec<RegistryIssue>> {
 }
 
 #[cfg(windows)]
-fn scan_empty_keys() -> Result<Vec<RegistryIssue>> {
-    // Empty key scanning is expensive and risky
-    // Return empty for safety
-    Ok(Vec::new())
-}
-
-#[cfg(windows)]
 fn expand_env_vars(s: &str) -> String {
     let mut result = s.to_string();
 
@@ -273,13 +264,4 @@ fn expand_env_vars(s: &str) -> String {
     }
 
     result
-}
-
-fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() > max_len {
-        let truncated: String = s.chars().take(max_len.saturating_sub(3)).collect();
-        format!("{}...", truncated)
-    } else {
-        s.to_string()
-    }
 }

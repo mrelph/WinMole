@@ -5,14 +5,11 @@ use std::path::PathBuf;
 pub struct CleanupTarget {
     pub name: String,
     pub path: PathBuf,
-    pub description: String,
-    pub category: String,
     pub requires_admin: bool,
     pub size: u64,
     pub file_count: Option<u64>,
     pub is_file: bool,
     pub pattern: Option<String>,
-    pub dangerous: bool,
 }
 
 /// Get temp folders for a category
@@ -28,14 +25,11 @@ pub fn get_temp_folders(category: &str) -> Result<Vec<CleanupTarget>> {
                     targets.push(CleanupTarget {
                         name: "User Temp".to_string(),
                         path: path.clone(),
-                        description: "User temporary files".to_string(),
-                        category: "User".to_string(),
                         requires_admin: false,
                         size: calculate_size(&path),
                         file_count: Some(count_files(&path)),
                         is_file: false,
                         pattern: None,
-                        dangerous: false,
                     });
                 }
             }
@@ -47,14 +41,11 @@ pub fn get_temp_folders(category: &str) -> Result<Vec<CleanupTarget>> {
                     targets.push(CleanupTarget {
                         name: "Recent Items".to_string(),
                         path: recent.clone(),
-                        description: "Recent file shortcuts".to_string(),
-                        category: "User".to_string(),
                         requires_admin: false,
                         size: calculate_size(&recent),
                         file_count: Some(count_files(&recent)),
                         is_file: false,
                         pattern: None,
-                        dangerous: false,
                     });
                 }
             }
@@ -67,14 +58,11 @@ pub fn get_temp_folders(category: &str) -> Result<Vec<CleanupTarget>> {
                 targets.push(CleanupTarget {
                     name: "Windows Temp".to_string(),
                     path: win_temp.clone(),
-                    description: "System temporary files".to_string(),
-                    category: "System".to_string(),
                     requires_admin: true,
                     size: calculate_size(&win_temp),
                     file_count: Some(count_files(&win_temp)),
                     is_file: false,
                     pattern: None,
-                    dangerous: false,
                 });
             }
 
@@ -84,14 +72,11 @@ pub fn get_temp_folders(category: &str) -> Result<Vec<CleanupTarget>> {
                 targets.push(CleanupTarget {
                     name: "Memory Dumps".to_string(),
                     path: minidump.clone(),
-                    description: "System crash dumps".to_string(),
-                    category: "System".to_string(),
                     requires_admin: true,
                     size: calculate_size(&minidump),
                     file_count: Some(count_files(&minidump)),
                     is_file: false,
                     pattern: None,
-                    dangerous: false,
                 });
             }
         }
@@ -103,14 +88,11 @@ pub fn get_temp_folders(category: &str) -> Result<Vec<CleanupTarget>> {
                 targets.push(CleanupTarget {
                     name: "Windows Update Cache".to_string(),
                     path: wu_cache.clone(),
-                    description: "Windows Update downloaded files".to_string(),
-                    category: "Windows".to_string(),
                     requires_admin: true,
                     size: calculate_size(&wu_cache),
                     file_count: Some(count_files(&wu_cache)),
                     is_file: false,
                     pattern: None,
-                    dangerous: false,
                 });
             }
 
@@ -120,14 +102,11 @@ pub fn get_temp_folders(category: &str) -> Result<Vec<CleanupTarget>> {
                 targets.push(CleanupTarget {
                     name: "Prefetch".to_string(),
                     path: prefetch.clone(),
-                    description: "Application prefetch cache".to_string(),
-                    category: "Windows".to_string(),
                     requires_admin: true,
                     size: calculate_size(&prefetch),
                     file_count: Some(count_files(&prefetch)),
                     is_file: false,
                     pattern: None,
-                    dangerous: false,
                 });
             }
 
@@ -137,14 +116,11 @@ pub fn get_temp_folders(category: &str) -> Result<Vec<CleanupTarget>> {
                 targets.push(CleanupTarget {
                     name: "Previous Windows".to_string(),
                     path: win_old.clone(),
-                    description: "Previous Windows installation".to_string(),
-                    category: "Windows".to_string(),
                     requires_admin: true,
                     size: calculate_size(&win_old),
                     file_count: Some(count_files(&win_old)),
                     is_file: false,
                     pattern: None,
-                    dangerous: true,
                 });
             }
         }
@@ -157,27 +133,21 @@ pub fn get_temp_folders(category: &str) -> Result<Vec<CleanupTarget>> {
                     targets.push(CleanupTarget {
                         name: "Thumbnail Cache".to_string(),
                         path: explorer.clone(),
-                        description: "Windows Explorer thumbnails".to_string(),
-                        category: "Cache".to_string(),
                         requires_admin: false,
                         size: calculate_pattern_size(&explorer, "thumbcache_*.db"),
                         file_count: None,
                         is_file: false,
                         pattern: Some("thumbcache_*.db".to_string()),
-                        dangerous: false,
                     });
 
                     targets.push(CleanupTarget {
                         name: "Icon Cache".to_string(),
                         path: explorer.clone(),
-                        description: "Windows icon cache".to_string(),
-                        category: "Cache".to_string(),
                         requires_admin: false,
                         size: calculate_pattern_size(&explorer, "iconcache_*.db"),
                         file_count: None,
                         is_file: false,
                         pattern: Some("iconcache_*.db".to_string()),
-                        dangerous: false,
                     });
                 }
             }
@@ -206,14 +176,11 @@ pub fn get_browser_caches() -> Result<Vec<CleanupTarget>> {
         targets.push(CleanupTarget {
             name: "Chrome Cache".to_string(),
             path: chrome_cache.clone(),
-            description: "Google Chrome page cache".to_string(),
-            category: "Browser".to_string(),
             requires_admin: false,
             size: calculate_size(&chrome_cache),
             file_count: Some(count_files(&chrome_cache)),
             is_file: false,
             pattern: None,
-            dangerous: false,
         });
     }
 
@@ -222,14 +189,11 @@ pub fn get_browser_caches() -> Result<Vec<CleanupTarget>> {
         targets.push(CleanupTarget {
             name: "Chrome Code Cache".to_string(),
             path: chrome_code_cache.clone(),
-            description: "Google Chrome JavaScript cache".to_string(),
-            category: "Browser".to_string(),
             requires_admin: false,
             size: calculate_size(&chrome_code_cache),
             file_count: Some(count_files(&chrome_code_cache)),
             is_file: false,
             pattern: None,
-            dangerous: false,
         });
     }
 
@@ -239,14 +203,11 @@ pub fn get_browser_caches() -> Result<Vec<CleanupTarget>> {
         targets.push(CleanupTarget {
             name: "Edge Cache".to_string(),
             path: edge_cache.clone(),
-            description: "Microsoft Edge page cache".to_string(),
-            category: "Browser".to_string(),
             requires_admin: false,
             size: calculate_size(&edge_cache),
             file_count: Some(count_files(&edge_cache)),
             is_file: false,
             pattern: None,
-            dangerous: false,
         });
     }
 
@@ -263,14 +224,11 @@ pub fn get_browser_caches() -> Result<Vec<CleanupTarget>> {
                             targets.push(CleanupTarget {
                                 name: "Firefox Cache".to_string(),
                                 path: cache.clone(),
-                                description: "Mozilla Firefox cache".to_string(),
-                                category: "Browser".to_string(),
                                 requires_admin: false,
                                 size: calculate_size(&cache),
                                 file_count: Some(count_files(&cache)),
                                 is_file: false,
                                 pattern: None,
-                                dangerous: false,
                             });
                             break; // Only add once
                         }
@@ -286,14 +244,11 @@ pub fn get_browser_caches() -> Result<Vec<CleanupTarget>> {
         targets.push(CleanupTarget {
             name: "Brave Cache".to_string(),
             path: brave_cache.clone(),
-            description: "Brave Browser cache".to_string(),
-            category: "Browser".to_string(),
             requires_admin: false,
             size: calculate_size(&brave_cache),
             file_count: Some(count_files(&brave_cache)),
             is_file: false,
             pattern: None,
-            dangerous: false,
         });
     }
 

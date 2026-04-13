@@ -67,7 +67,7 @@ fn run_live(interval: u64) -> Result<()> {
     }
 }
 
-fn display_status(term: &Term, show_trends: bool) -> Result<()> {
+fn display_status(_term: &Term, show_trends: bool) -> Result<()> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
@@ -145,7 +145,7 @@ fn display_status(term: &Term, show_trends: bool) -> Result<()> {
     // Memory
     let total_mem = sys.total_memory();
     let used_mem = sys.used_memory();
-    let mem_percent = (used_mem as f64 / total_mem as f64 * 100.0);
+    let mem_percent = used_mem as f64 / total_mem as f64 * 100.0;
     let mem_bar = create_threshold_bar(mem_percent as u64, 20);
     let mem_info = format!("{:.1}/{:.1} GB",
         used_mem as f64 / 1024.0 / 1024.0 / 1024.0,
@@ -183,7 +183,7 @@ fn display_status(term: &Term, show_trends: bool) -> Result<()> {
     }
 
     let disk_percent = if total_disk_space > 0 {
-        (used_disk_space as f64 / total_disk_space as f64 * 100.0)
+        used_disk_space as f64 / total_disk_space as f64 * 100.0
     } else {
         0.0
     };

@@ -1,9 +1,7 @@
 use anyhow::Result;
 use console::style;
 use dialoguer::{theme::ColorfulTheme, MultiSelect, Select};
-use sysinfo::{System, ProcessesToUpdate, ProcessStatus};
-use std::collections::HashMap;
-
+use sysinfo::System;
 use crate::commands::format_size;
 use crate::ui::theme::{self, icons, boxes, create_threshold_bar};
 
@@ -46,7 +44,6 @@ fn analyze_processes() -> Result<()> {
         let cpu = process.cpu_usage();
         let memory = process.memory();
         let name = process.name().to_string_lossy().to_string();
-        let status = process.status();
         let run_time = process.run_time();
 
         processes.push(ProcessInfo {
@@ -54,7 +51,6 @@ fn analyze_processes() -> Result<()> {
             name,
             cpu,
             memory,
-            status,
             run_time,
         });
     }
@@ -186,7 +182,22 @@ fn analyze_processes() -> Result<()> {
                     for idx in indices {
                         let proc = killable[idx];
                         print!("  {} Terminating {}... ", style(icons::PROGRESS).cyan(), proc.name);
-                        if kill_process(proc.pid) {
+                        let killed = {
+                            #[cfg(windows)]
+                            {
+                                use std::process::Command;
+                                Command::new("taskkill")
+                                    .args(["/PID", &proc.pid.to_string(), "/F"])
+                                    .output()
+                                    .map(|o| o.status.success())
+                                    .unwrap_or(false)
+                            }
+                            #[cfg(not(windows))]
+                            {
+                                false
+                            }
+                        };
+                        if killed {
                             println!("{} {}", style(icons::SUCCESS).green(), style("terminated").green());
                         } else {
                             println!("{} {}", style(icons::ERROR).red(), style("failed (access denied)").red());
@@ -467,7 +478,6 @@ struct ProcessInfo {
     name: String,
     cpu: f32,
     memory: u64,
-    status: ProcessStatus,
     run_time: u64,
 }
 
@@ -481,22 +491,6 @@ fn is_system_process(name: &str) -> bool {
         "fontdrvhost.exe", "WUDFHost.exe", "dasHost.exe",
     ];
     system_procs.iter().any(|&s| name.eq_ignore_ascii_case(s))
-}
-
-fn kill_process(pid: u32) -> bool {
-    #[cfg(windows)]
-    {
-        use std::process::Command;
-        Command::new("taskkill")
-            .args(["/PID", &pid.to_string(), "/F"])
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-    }
-    #[cfg(not(windows))]
-    {
-        false
-    }
 }
 
 fn truncate(s: &str, max_len: usize) -> String {

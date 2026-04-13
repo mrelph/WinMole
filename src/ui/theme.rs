@@ -1,43 +1,7 @@
-use console::{style, Style, StyledObject};
+use console::{style, StyledObject};
 use std::io::{self, Write};
 use std::time::Duration;
 use std::thread;
-
-// ============================================================================
-// BRAND COLORS & THEME
-// ============================================================================
-
-pub struct WinMoleTheme {
-    pub primary: Style,      // Cyan - headers, important elements
-    pub secondary: Style,    // White - content
-    pub accent: Style,       // Yellow - highlights, sizes
-    pub success: Style,      // Green - success states
-    pub warning: Style,      // Yellow - warnings
-    pub error: Style,        // Red - errors
-    pub info: Style,         // Cyan - informational
-    pub muted: Style,        // Dim - secondary info
-    pub border: Style,       // Cyan dim - borders
-}
-
-impl Default for WinMoleTheme {
-    fn default() -> Self {
-        Self {
-            primary: Style::new().cyan().bold(),
-            secondary: Style::new().white(),
-            accent: Style::new().yellow(),
-            success: Style::new().green(),
-            warning: Style::new().yellow(),
-            error: Style::new().red(),
-            info: Style::new().cyan(),
-            muted: Style::new().dim(),
-            border: Style::new().cyan(),
-        }
-    }
-}
-
-lazy_static::lazy_static! {
-    pub static ref THEME: WinMoleTheme = WinMoleTheme::default();
-}
 
 // ============================================================================
 // STANDARDIZED ICONS
@@ -57,10 +21,7 @@ pub mod icons {
     pub const ARROW_UP: &str = "↑";
     pub const ARROW_DOWN: &str = "↓";
     pub const ARROW_STABLE: &str = "→";
-    pub const SPINNER: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-    pub const ELLIPSIS: &str = "⋮";
     pub const BACK: &str = "←";
-    pub const HELP: &str = "?";
     pub const CLEANUP: &str = "🧹";
     pub const DISK: &str = "💾";
     pub const STATUS: &str = "📊";
@@ -95,10 +56,6 @@ pub mod boxes {
     pub const VERTICAL: &str = "║";
     pub const T_RIGHT: &str = "╠";
     pub const T_LEFT: &str = "╣";
-    pub const T_DOWN: &str = "╦";
-    pub const T_UP: &str = "╩";
-    pub const CROSS: &str = "╬";
-
     // Light box drawing
     pub const L_TOP_LEFT: &str = "┌";
     pub const L_TOP_RIGHT: &str = "┐";
@@ -164,15 +121,6 @@ pub fn print_breadcrumb(path: &[&str]) {
         formatted.join(&format!(" {} ", style(icons::ARROW_RIGHT).dim()))
     );
     println!();
-}
-
-/// Print help hint
-pub fn print_help_hint(context: &str) {
-    println!("  {} Press {} for help about {}",
-        style(icons::INFO).cyan(),
-        style("?").cyan().bold(),
-        context
-    );
 }
 
 /// Print menu footer with navigation hints
@@ -297,22 +245,6 @@ pub fn print_success_animation(message: &str) {
     );
 }
 
-/// Print scanning indicator (call repeatedly)
-pub fn print_scanning(path: &str) {
-    let truncated = truncate_path(path, 50);
-    print!("\r  {} Scanning: {:<50}",
-        style(icons::PROGRESS).cyan(),
-        truncated
-    );
-    let _ = io::stdout().flush();
-}
-
-/// Clear the scanning line
-pub fn clear_scanning_line() {
-    print!("\r{}\r", " ".repeat(70));
-    let _ = io::stdout().flush();
-}
-
 // ============================================================================
 // TABLE DISPLAY
 // ============================================================================
@@ -404,62 +336,6 @@ pub fn print_table(headers: &[&str], rows: &[Vec<String>]) {
 }
 
 // ============================================================================
-// CONFIRMATION & PREVIEW
-// ============================================================================
-
-/// Show preview before destructive action
-pub fn print_preview(title: &str, items: &[String], total_size: Option<u64>) {
-    println!();
-    println!("  {}", style(boxes::HORIZONTAL.repeat(60)).dim());
-    println!("  {}", style(title).white().bold());
-    println!("  {}", style(boxes::HORIZONTAL.repeat(60)).dim());
-
-    for item in items.iter().take(5) {
-        println!("  {} {}", style(icons::BULLET).cyan(), item);
-    }
-
-    if items.len() > 5 {
-        println!("  {} ... and {} more items",
-            style(icons::ELLIPSIS).dim(),
-            items.len() - 5
-        );
-    }
-
-    if let Some(size) = total_size {
-        println!();
-        println!("  {} Total size: {}",
-            style(icons::INFO).cyan(),
-            style(format_size(size)).yellow().bold()
-        );
-    }
-
-    println!("  {}", style(boxes::HORIZONTAL.repeat(60)).dim());
-}
-
-/// Print warning box for destructive actions
-pub fn print_destructive_warning(action: &str, affected_count: usize) {
-    println!();
-    println!("  {}", style("⚠  WARNING ").red().bold());
-    println!("  This will {}", action);
-    println!("  {} {} items will be affected",
-        style(icons::BULLET).red(),
-        style(affected_count).red().bold()
-    );
-    println!();
-    println!("  {} This action cannot be undone!", style("!").red().bold());
-    println!();
-}
-
-/// Print rollback/backup info
-pub fn print_backup_info(backup_path: &str) {
-    println!();
-    println!("  {} Backup created at: {}",
-        style(icons::INFO).cyan(),
-        style(backup_path).cyan()
-    );
-}
-
-// ============================================================================
 // TREND INDICATORS
 // ============================================================================
 
@@ -499,37 +375,9 @@ impl Trend {
     }
 }
 
-/// Print metric with trend indicator
-pub fn print_metric_with_trend(name: &str, current: u64, unit: &str, trend: Option<Trend>) {
-    let trend_display = trend.map(|t| t.styled().to_string()).unwrap_or_default();
-    println!("  {:<20} {:>10} {} {}",
-        name,
-        style(current).white().bold(),
-        unit,
-        trend_display
-    );
-}
-
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
-
-/// Format bytes to human readable size
-pub fn format_size(bytes: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = KB * 1024;
-    const GB: u64 = MB * 1024;
-
-    if bytes >= GB {
-        format!("{:.2} GB", bytes as f64 / GB as f64)
-    } else if bytes >= MB {
-        format!("{:.2} MB", bytes as f64 / MB as f64)
-    } else if bytes >= KB {
-        format!("{:.2} KB", bytes as f64 / KB as f64)
-    } else {
-        format!("{} B", bytes)
-    }
-}
 
 /// Truncate a string to max length with ellipsis
 pub fn truncate_str(s: &str, max_len: usize) -> String {
@@ -540,38 +388,10 @@ pub fn truncate_str(s: &str, max_len: usize) -> String {
     }
 }
 
-/// Truncate a path for display
-pub fn truncate_path(path: &str, max_len: usize) -> String {
-    if path.len() <= max_len {
-        return path.to_string();
-    }
-
-    // Try to keep the filename visible
-    if let Some(pos) = path.rfind(|c| c == '\\' || c == '/') {
-        let filename = &path[pos..];
-        if filename.len() < max_len - 3 {
-            let available = max_len - filename.len() - 3;
-            return format!("{}...{}", &path[..available], filename);
-        }
-    }
-
-    format!("{}...", &path[..max_len - 3])
-}
-
 /// Strip ANSI codes from string (for width calculation)
 fn strip_ansi(s: &str) -> String {
     let re = regex::Regex::new(r"\x1b\[[0-9;]*m").unwrap();
     re.replace_all(s, "").to_string()
-}
-
-/// Create a progress bar string
-pub fn create_bar(percentage: u64, width: usize) -> String {
-    let filled = (percentage as usize * width / 100).min(width);
-    let empty = width - filled;
-    format!("{}{}",
-        style("█".repeat(filled)).cyan(),
-        style("░".repeat(empty)).dim()
-    )
 }
 
 /// Create a colored progress bar based on threshold

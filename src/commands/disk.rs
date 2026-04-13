@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::commands::format_size;
-use crate::ui::theme::{self, icons, boxes, create_threshold_bar};
+use crate::ui::theme::{self, icons};
 
 pub fn run(path: &str, mode: &str, depth: usize, top: usize) -> Result<()> {
     let path = PathBuf::from(path);
@@ -22,9 +22,7 @@ pub fn run(path: &str, mode: &str, depth: usize, top: usize) -> Result<()> {
         "largest-files" | "largestfiles" => show_largest_files(&path, top)?,
         "largest-folders" | "largestfolders" => show_largest_folders(&path, top)?,
         "file-types" | "filetypes" => show_file_types(&path, top)?,
-        "duplicates" => show_duplicates(&path, top)?,
         "old-files" | "oldfiles" => show_old_files(&path, 365, top)?,
-        "summary" => show_summary(&path)?,
         _ => {
             println!("Unknown mode: {}. Using 'tree'.", mode);
             show_tree(&path, depth, top)?;
@@ -299,14 +297,6 @@ fn show_file_types(path: &PathBuf, top_n: usize) -> Result<()> {
     Ok(())
 }
 
-fn show_duplicates(path: &PathBuf, top_n: usize) -> Result<()> {
-    theme::print_info("Duplicate detection requires file hashing - this may take a while");
-    println!();
-    println!("  For large directories, consider using a dedicated tool like 'fdupes' or 'rmlint'");
-
-    Ok(())
-}
-
 fn show_old_files(path: &PathBuf, days: u32, top_n: usize) -> Result<()> {
     println!("  Scanning for files older than {} days in {}...", days, style(path.display()).cyan());
     println!();
@@ -358,47 +348,6 @@ fn show_old_files(path: &PathBuf, days: u32, top_n: usize) -> Result<()> {
         style(old_files.len()).cyan(),
         style(format_size(total)).yellow().bold()
     );
-
-    Ok(())
-}
-
-fn show_summary(path: &PathBuf) -> Result<()> {
-    println!("  Drive Summary");
-    println!();
-
-    // Get all drives on Windows
-    #[cfg(windows)]
-    {
-        for letter in b'A'..=b'Z' {
-            let drive = format!("{}:\\", letter as char);
-            let drive_path = PathBuf::from(&drive);
-
-            if drive_path.exists() {
-                if let Ok(space) = fs2::available_space(&drive_path) {
-                    if let Ok(total) = fs2::total_space(&drive_path) {
-                        let used = total - space;
-                        let percent = (used as f64 / total as f64 * 100.0) as u32;
-
-                        let bar_color = match percent {
-                            0..=75 => "green",
-                            76..=90 => "yellow",
-                            _ => "red",
-                        };
-
-                        let bar = create_bar_colored(percent, 25, bar_color);
-
-                        println!("  {}: {} {}/{} ({}% used)",
-                            style(format!("{}:", letter as char)).cyan().bold(),
-                            bar,
-                            format_size(used),
-                            format_size(total),
-                            percent
-                        );
-                    }
-                }
-            }
-        }
-    }
 
     Ok(())
 }
@@ -512,19 +461,3 @@ fn create_bar(percent: u32, width: usize) -> String {
     }
 }
 
-fn create_bar_colored(percent: u32, width: usize, color: &str) -> String {
-    let filled = (percent as usize * width / 100).min(width);
-    let empty = width - filled;
-
-    let bar = format!("{}{}",
-        "█".repeat(filled),
-        "░".repeat(empty)
-    );
-
-    match color {
-        "green" => style(bar).green().to_string(),
-        "yellow" => style(bar).yellow().to_string(),
-        "red" => style(bar).red().to_string(),
-        _ => bar,
-    }
-}

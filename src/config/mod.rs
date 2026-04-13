@@ -86,24 +86,9 @@ impl WinMoleConfig {
         self.applied_tweaks.retain(|t| t.tweak_id != tweak_id);
     }
 
-    /// Check if a tweak is recorded as applied
-    pub fn is_tweak_applied(&self, tweak_id: &str) -> bool {
-        self.applied_tweaks.iter().any(|t| t.tweak_id == tweak_id)
-    }
-
-    /// Get applied tweak info
-    pub fn get_applied_tweak(&self, tweak_id: &str) -> Option<&AppliedTweak> {
-        self.applied_tweaks.iter().find(|t| t.tweak_id == tweak_id)
-    }
-
     /// Record a backup
     pub fn record_backup(&mut self, backup: BackupInfo) {
         self.backups.push(backup);
-    }
-
-    /// Get all backups
-    pub fn get_backups(&self) -> &[BackupInfo] {
-        &self.backups
     }
 }
 
@@ -123,9 +108,9 @@ mod tests {
         let mut config = WinMoleConfig::default();
 
         config.record_applied_tweak("test_tweak", Some("backup_data".to_string()));
-        assert!(config.is_tweak_applied("test_tweak"));
+        assert!(config.applied_tweaks.iter().any(|t| t.tweak_id == "test_tweak"));
 
         config.remove_applied_tweak("test_tweak");
-        assert!(!config.is_tweak_applied("test_tweak"));
+        assert!(!config.applied_tweaks.iter().any(|t| t.tweak_id == "test_tweak"));
     }
 }

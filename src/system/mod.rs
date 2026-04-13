@@ -192,6 +192,7 @@ fn count_startup_items() -> usize {
 }
 
 #[cfg(not(windows))]
+#[allow(dead_code)]
 fn count_startup_items() -> usize {
     0
 }

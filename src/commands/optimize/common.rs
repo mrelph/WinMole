@@ -25,28 +25,6 @@ pub enum TweakRisk {
     Dangerous,
 }
 
-impl TweakRisk {
-    /// Get the color style for this risk level
-    pub fn color(&self) -> &'static str {
-        match self {
-            TweakRisk::Safe => "green",
-            TweakRisk::Moderate => "yellow",
-            TweakRisk::Risky => "red",
-            TweakRisk::Dangerous => "red",
-        }
-    }
-
-    /// Get the icon for this risk level
-    pub fn icon(&self) -> &'static str {
-        match self {
-            TweakRisk::Safe => "✓",
-            TweakRisk::Moderate => "⚠",
-            TweakRisk::Risky => "⚠",
-            TweakRisk::Dangerous => "☠",
-        }
-    }
-}
-
 impl fmt::Display for TweakRisk {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

@@ -15,7 +15,7 @@ use anyhow::Result;
 use console::{style, Term};
 
 use crate::system::{get_health_score, get_cleanable_size};
-use crate::ui::theme::{self, icons, boxes, create_threshold_bar, Trend};
+use crate::ui::theme::{self, icons, boxes, create_threshold_bar};
 
 /// Run a quick system scan
 pub fn quick_scan() -> Result<()> {
@@ -119,11 +119,6 @@ pub fn format_size(bytes: u64) -> String {
     bytesize::ByteSize(bytes).to_string_as(true)
 }
 
-/// Print a section header
-pub fn print_header(title: &str) {
-    theme::print_section_header(title);
-}
-
 /// Print a success message
 pub fn print_success(message: &str) {
     theme::print_success(message);
@@ -142,29 +137,4 @@ pub fn print_error(message: &str) {
 /// Print a progress message
 pub fn print_progress(message: &str) {
     println!("  {} {}", style(icons::PROGRESS).blue(), message);
-}
-
-/// Print an info message
-pub fn print_info(message: &str) {
-    theme::print_info(message);
-}
-
-/// Print error with solution
-pub fn print_error_with_solution(error: &str, solution: &str) {
-    theme::print_error_with_solution(error, solution);
-}
-
-/// Print a formatted table
-pub fn print_table(headers: &[&str], rows: &[Vec<String>]) {
-    theme::print_table(headers, rows);
-}
-
-/// Print preview before action
-pub fn print_preview(title: &str, items: &[String], total_size: Option<u64>) {
-    theme::print_preview(title, items, total_size);
-}
-
-/// Print result summary
-pub fn print_result_summary(title: &str, stats: &[(&str, String)], recommendations: &[&str]) {
-    theme::print_result_summary(title, stats, recommendations);
 }

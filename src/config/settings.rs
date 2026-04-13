@@ -49,29 +49,3 @@ impl Default for UserSettings {
     }
 }
 
-impl UserSettings {
-    /// Enable advanced tweaks visibility
-    pub fn enable_advanced(&mut self) {
-        self.show_advanced_tweaks = true;
-    }
-
-    /// Disable advanced tweaks visibility
-    pub fn disable_advanced(&mut self) {
-        self.show_advanced_tweaks = false;
-    }
-
-    /// Set the active profile
-    pub fn set_active_profile(&mut self, profile: Option<String>) {
-        self.active_profile = profile;
-    }
-
-    /// Toggle auto-backup setting
-    pub fn toggle_auto_backup(&mut self) {
-        self.auto_backup = !self.auto_backup;
-    }
-
-    /// Set custom backup directory
-    pub fn set_backup_dir(&mut self, path: PathBuf) {
-        self.backup_dir = path;
-    }
-}

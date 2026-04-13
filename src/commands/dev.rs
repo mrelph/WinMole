@@ -9,82 +9,58 @@ use std::time::{Duration, SystemTime};
 use walkdir::WalkDir;
 
 use crate::commands::{format_size, print_success, print_warning};
-use crate::ui::theme::{self, icons};
+use crate::ui::theme;
 
 /// Artifact type definitions
 struct ArtifactDef {
-    name: &'static str,
     description: &'static str,
-    indicator: &'static [&'static str],
 }
 
 fn get_artifact_defs() -> HashMap<&'static str, ArtifactDef> {
     let mut defs = HashMap::new();
 
     defs.insert("node_modules", ArtifactDef {
-        name: "node_modules",
         description: "Node.js dependencies",
-        indicator: &["package.json"],
     });
 
     defs.insert("target", ArtifactDef {
-        name: "target",
         description: "Rust/Cargo build output",
-        indicator: &["Cargo.toml"],
     });
 
     defs.insert("bin", ArtifactDef {
-        name: "bin",
         description: ".NET build output",
-        indicator: &["*.csproj", "*.fsproj"],
     });
 
     defs.insert("obj", ArtifactDef {
-        name: "obj",
         description: ".NET intermediate files",
-        indicator: &["*.csproj", "*.fsproj"],
     });
 
     defs.insert("__pycache__", ArtifactDef {
-        name: "__pycache__",
         description: "Python bytecode cache",
-        indicator: &["*.py"],
     });
 
     defs.insert(".pytest_cache", ArtifactDef {
-        name: ".pytest_cache",
         description: "Pytest cache",
-        indicator: &["pytest.ini", "setup.py"],
     });
 
     defs.insert(".gradle", ArtifactDef {
-        name: ".gradle",
         description: "Gradle cache",
-        indicator: &["build.gradle"],
     });
 
     defs.insert("vendor", ArtifactDef {
-        name: "vendor",
         description: "PHP/Go dependencies",
-        indicator: &["composer.json", "go.mod"],
     });
 
     defs.insert(".next", ArtifactDef {
-        name: ".next",
         description: "Next.js build output",
-        indicator: &["next.config.js"],
     });
 
     defs.insert("dist", ArtifactDef {
-        name: "dist",
         description: "Distribution output",
-        indicator: &["package.json", "setup.py"],
     });
 
     defs.insert("build", ArtifactDef {
-        name: "build",
         description: "Build output",
-        indicator: &["CMakeLists.txt", "Makefile"],
     });
 
     defs

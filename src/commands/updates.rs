@@ -17,17 +17,9 @@ use crate::ui::theme::{self, icons};
 // DATA TYPES
 // ============================================================================
 
-/// Represents a Windows Update entry
-#[derive(Debug, Clone)]
-pub struct WindowsUpdate {
-    pub kb_id: String,
-    pub title: String,
-    pub installed_on: String,
-    pub description: String,
-}
-
 /// Current Windows Update pause/policy status
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct UpdatePauseStatus {
     pub is_paused: bool,
     pub pause_until: Option<String>,

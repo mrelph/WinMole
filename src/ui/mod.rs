@@ -5,7 +5,7 @@ use console::{style, Term};
 use dialoguer::{theme::ColorfulTheme, Select, MultiSelect};
 
 use crate::commands;
-use theme::{icons, boxes, print_menu_footer};
+use theme::{icons, print_menu_footer};
 
 /// Print the WinMole ASCII logo with version
 pub fn print_logo() {
@@ -21,34 +21,6 @@ pub fn print_logo() {
         style(icons::MOLE).white(),
         style("Windows System Optimization Tool").white().bold(),
         style(env!("CARGO_PKG_VERSION")).dim()
-    );
-    println!();
-}
-
-/// Print a smaller banner for subcommands
-pub fn print_banner(title: &str) {
-    let width: usize = 50;
-    let padding = width.saturating_sub(title.len() + 2);
-    let left_pad = padding / 2;
-    let right_pad = padding - left_pad;
-
-    println!();
-    println!("  {}{}{}",
-        style(boxes::TOP_LEFT).cyan(),
-        style(boxes::HORIZONTAL.repeat(width)).cyan(),
-        style(boxes::TOP_RIGHT).cyan()
-    );
-    println!("  {} {}{}{} {}",
-        style(boxes::VERTICAL).cyan(),
-        " ".repeat(left_pad),
-        style(title).white().bold(),
-        " ".repeat(right_pad),
-        style(boxes::VERTICAL).cyan()
-    );
-    println!("  {}{}{}",
-        style(boxes::BOTTOM_LEFT).cyan(),
-        style(boxes::HORIZONTAL.repeat(width)).cyan(),
-        style(boxes::BOTTOM_RIGHT).cyan()
     );
     println!();
 }
@@ -143,8 +115,6 @@ pub fn run_tui() -> Result<()> {
                             style("[4]").cyan().bold(), icons::FILE),
                         format!("{} {} Old Files          - Find old unused files",
                             style("[5]").cyan().bold(), icons::WARNING),
-                        format!("{} {} Summary            - Quick overview",
-                            style("[6]").cyan().bold(), icons::INFO),
                         format!("{} {} Back to Main Menu",
                             style("[B]").yellow().bold(), icons::BACK),
                     ];
@@ -156,15 +126,14 @@ pub fn run_tui() -> Result<()> {
                         .interact_opt()?;
 
                     match mode_selection {
-                        Some(6) | None => break,
+                        Some(5) | None => break,
                         Some(mode_idx) => {
                             let mode = match mode_idx {
                                 0 => "tree",
                                 1 => "largest-files",
                                 2 => "largest-folders",
                                 3 => "file-types",
-                                4 => "old-files",
-                                _ => "summary",
+                                _ => "old-files",
                             };
 
                             // Common paths for disk analysis
@@ -1261,10 +1230,4 @@ pub fn wait_for_enter() -> Result<()> {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
     Ok(())
-}
-
-/// Print a consistent cancellation message
-fn print_cancelled() {
-    println!();
-    theme::print_info("Operation cancelled");
 }
