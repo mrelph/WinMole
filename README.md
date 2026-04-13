@@ -8,6 +8,14 @@ Inspired by [tw93/Mole](https://github.com/tw93/Mole) for macOS.
 ![Windows](https://img.shields.io/badge/Windows-10%2F11-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
+## Quick Install
+
+```powershell
+irm https://raw.githubusercontent.com/mrelph/WinMole/main/install.ps1 | iex
+```
+
+Or download the latest binary from [GitHub Releases](https://github.com/mrelph/WinMole/releases).
+
 ## Features
 
 - **System Cleanup** - Clean temp files, browser caches, Windows Update cache with interactive category selection
@@ -36,7 +44,7 @@ cargo build --release
 # The binary will be at target/release/winmole.exe
 ```
 
-### Pre-built Binaries (Coming Soon)
+### Pre-built Binary
 
 Download from the [Releases](https://github.com/mrelph/WinMole/releases) page.
 
@@ -106,14 +114,11 @@ winmole disk C:\ --mode file-types
 # Find old files (files not modified recently)
 winmole disk C:\Downloads --mode old-files
 
-# Summary view
-winmole disk C:\ --mode summary
-
 # Interactive mode with submenu
 winmole  # Select "Disk Analysis", then choose mode
 ```
 
-**Modes:** `tree`, `largest-files`, `largest-folders`, `file-types`, `old-files`, `summary`
+**Modes:** `tree`, `largest-files`, `largest-folders`, `file-types`, `old-files`
 
 The interactive submenu loops, allowing you to run multiple analysis modes without returning to the main menu. Select "Back to Main Menu" when done.
 
@@ -298,7 +303,7 @@ winmole -i
 
 **Menu Structure:**
 1. System Cleanup - Interactive category selection with preview
-2. Disk Analysis - Submenu with 6 analysis modes
+2. Disk Analysis - Submenu with 5 analysis modes
 3. System Status - Live monitoring option
 4. Developer Cleanup - Interactive path and type selection
 5. Package Manager - Submenu with 7 package operations
@@ -373,7 +378,7 @@ Built with modern Rust for performance, reliability, and safety:
 - **Clap** - Command-line argument parsing
 - **Tokio** - Async runtime for responsive operations
 - **Windows API** - Direct Windows system integration via windows-rs
-- **Sysinfo** - Cross-platform system information
+- **Sysinfo** - System information (CPU, memory, disk)
 - **Dialoguer** - Interactive CLI prompts
 
 **Why Rust?**
@@ -395,7 +400,7 @@ Built with modern Rust for performance, reliability, and safety:
 
 ## Project History
 
-WinMole was originally implemented in PowerShell and has been completely rebuilt in Rust for better performance, reliability, and cross-compilation support. The original PowerShell implementation is preserved in the `archive/` directory for reference.
+WinMole was originally implemented in PowerShell and has been completely rebuilt in Rust for better performance, reliability, and native Windows integration. The original PowerShell implementation is preserved in the `archive/` directory for reference.
 
 **Migration Benefits:**
 - 10x faster disk analysis and file operations

@@ -48,7 +48,7 @@ enum Commands {
         #[arg(default_value = "C:\\")]
         path: String,
 
-        /// Analysis mode: tree, largest-files, largest-folders, duplicates, file-types, old-files
+        /// Analysis mode: tree, largest-files, largest-folders, file-types, old-files
         #[arg(short, long, default_value = "tree")]
         mode: String,
 
