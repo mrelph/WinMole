@@ -1,14 +1,18 @@
 use anyhow::Result;
 
 #[cfg(windows)]
-use crate::commands::print_warning;
+use console::style;
+
+#[cfg(windows)]
+use crate::commands::{print_success, print_warning};
 use crate::ui::theme;
 
-pub fn run(_mode: &str, _categories: &[String], _backup_path: Option<&str>) -> Result<()> {
+pub fn run(mode: &str, categories: &[String], backup_path: Option<&str>) -> Result<()> {
     theme::print_section_header("Registry Cleaner");
 
     #[cfg(not(windows))]
     {
+        let _ = (mode, categories, backup_path);
         return Ok(());
     }
 
@@ -20,8 +24,6 @@ pub fn run(_mode: &str, _categories: &[String], _backup_path: Option<&str>) -> R
 
 #[cfg(windows)]
 fn run_windows(mode: &str, categories: &[String], backup_path: Option<&str>) -> Result<()> {
-    use winreg::enums::*;
-    use winreg::RegKey;
     use std::fs::File;
     use std::io::Write;
 
@@ -238,6 +240,16 @@ fn scan_orphaned_software() -> Result<Vec<RegistryIssue>> {
     }
 
     Ok(issues)
+}
+
+#[cfg(windows)]
+fn truncate(s: &str, max_len: usize) -> String {
+    if s.len() > max_len {
+        let truncated: String = s.chars().take(max_len.saturating_sub(3)).collect();
+        format!("{}...", truncated)
+    } else {
+        s.to_string()
+    }
 }
 
 #[cfg(windows)]

@@ -14,6 +14,8 @@ pub mod icons {
     pub const INFO: &str = "ℹ";
     pub const PROGRESS: &str = "▶";
     pub const BULLET: &str = "●";
+    #[cfg_attr(not(windows), allow(dead_code))] // used only in cfg(windows) code paths
+    pub const ELLIPSIS: &str = "⋮";
     pub const FOLDER: &str = "📁";
     pub const FILE: &str = "📄";
     pub const PROMPT: &str = "⎿";
