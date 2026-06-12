@@ -115,11 +115,12 @@ impl TweakExecutor {
             action_results.push(result);
         }
 
+        let error = Self::first_action_error(&action_results);
         Ok(TweakResult {
             tweak_id: tweak.id.clone(),
             success: all_success,
             action_results,
-            error: None,
+            error,
         })
     }
 
@@ -136,12 +137,21 @@ impl TweakExecutor {
             action_results.push(result);
         }
 
+        let error = Self::first_action_error(&action_results);
         Ok(TweakResult {
             tweak_id: tweak.id.clone(),
             success: all_success,
             action_results,
-            error: None,
+            error,
         })
+    }
+
+    /// First error from a failed action, for surfacing in the aggregate result
+    fn first_action_error(results: &[ActionResult]) -> Option<String> {
+        results
+            .iter()
+            .find(|r| !r.success)
+            .and_then(|r| r.error.clone())
     }
 
     /// Detect the current state of a tweak
@@ -317,7 +327,7 @@ impl TweakExecutor {
     ) -> Result<ActionResult> {
         Ok(ActionResult {
             description: format!("Set {}\\{}\\{} = {}", hive, path, name, value),
-            success: true,
+            success: false,
             error: Some("Registry operations only available on Windows".to_string()),
             previous_value: None,
         })
@@ -378,7 +388,7 @@ impl TweakExecutor {
     ) -> Result<ActionResult> {
         Ok(ActionResult {
             description: format!("Delete {}\\{}\\{}", hive, path, name),
-            success: true,
+            success: false,
             error: Some("Registry operations only available on Windows".to_string()),
             previous_value: None,
         })
@@ -539,7 +549,7 @@ impl TweakExecutor {
     ) -> Result<ActionResult> {
         Ok(ActionResult {
             description: format!("Set service '{}' to {}", name, startup_type),
-            success: true,
+            success: false,
             error: Some("Service operations only available on Windows".to_string()),
             previous_value: None,
         })
@@ -637,7 +647,7 @@ impl TweakExecutor {
                 if enabled { "Enable" } else { "Disable" },
                 path
             ),
-            success: true,
+            success: false,
             error: Some("Scheduled task operations only available on Windows".to_string()),
             previous_value: None,
         })
@@ -762,7 +772,7 @@ impl TweakExecutor {
         };
         Ok(ActionResult {
             description,
-            success: true,
+            success: false,
             error: Some("Power plan operations only available on Windows".to_string()),
             previous_value: None,
         })
@@ -772,6 +782,7 @@ impl TweakExecutor {
     // Command execution
     // =========================================================================
 
+    #[cfg(windows)]
     fn execute_command(&self, command: &str, args: &[String]) -> Result<ActionResult> {
         use std::process::Command;
 
@@ -795,6 +806,16 @@ impl TweakExecutor {
                 previous_value: None,
             })
         }
+    }
+
+    #[cfg(not(windows))]
+    fn execute_command(&self, command: &str, args: &[String]) -> Result<ActionResult> {
+        Ok(ActionResult {
+            description: format!("Run: {} {}", command, args.join(" ")),
+            success: false,
+            error: Some("Command execution only available on Windows".to_string()),
+            previous_value: None,
+        })
     }
 
     // =========================================================================
@@ -854,7 +875,7 @@ impl TweakExecutor {
             } else {
                 format!("Remove AppX package: {}", package_pattern)
             },
-            success: true,
+            success: false,
             error: Some("AppX operations only available on Windows".to_string()),
             previous_value: None,
         })
