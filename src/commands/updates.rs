@@ -82,11 +82,22 @@ fn show_update_status() -> Result<()> {
     let mut status = UpdatePauseStatus::default();
 
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    if let Ok(wu_key) = hklm.open_subkey("SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate") {
-        // Check pause dates
-        if let Ok(val) = wu_key.get_value::<String, _>("PauseQualityUpdatesStartTime") {
+
+    // Pause state set by `winmole updates pause` (and the Settings app)
+    if let Ok(ux_key) = hklm.open_subkey("SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings") {
+        if let Ok(val) = ux_key.get_value::<String, _>("PauseUpdatesExpiryTime") {
             status.is_paused = true;
             status.pause_until = Some(val);
+        }
+    }
+
+    if let Ok(wu_key) = hklm.open_subkey("SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate") {
+        // Pause set via the policy path (older WinMole versions / group policy)
+        if let Ok(val) = wu_key.get_value::<String, _>("PauseQualityUpdatesStartTime") {
+            if !status.is_paused {
+                status.is_paused = true;
+                status.pause_until = Some(val);
+            }
         }
 
         // Check driver exclusion
@@ -320,20 +331,29 @@ fn pause_updates(days: u32, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
+    // The Settings-app pause state lives under UX\Settings as ISO-8601 UTC
+    // timestamps. The Policies\...\WindowsUpdate start-time values ignore the
+    // day count and always expire after Windows' fixed 35-day window.
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let (wu_key, _) = hklm.create_subkey("SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate")?;
+    let (ux_key, _) = hklm.create_subkey("SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings")?;
 
-    let now = chrono::Local::now();
-    let pause_date = now.format("%Y-%m-%d").to_string();
+    let start = chrono::Utc::now();
+    let end = start + chrono::Duration::days(days as i64);
+    let start_str = start.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let end_str = end.format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
-    wu_key.set_value("PauseQualityUpdatesStartTime", &pause_date)?;
-    wu_key.set_value("PauseFeatureUpdatesStartTime", &pause_date)?;
+    ux_key.set_value("PauseUpdatesStartTime", &start_str)?;
+    ux_key.set_value("PauseUpdatesExpiryTime", &end_str)?;
+    ux_key.set_value("PauseQualityUpdatesStartTime", &start_str)?;
+    ux_key.set_value("PauseQualityUpdatesEndTime", &end_str)?;
+    ux_key.set_value("PauseFeatureUpdatesStartTime", &start_str)?;
+    ux_key.set_value("PauseFeatureUpdatesEndTime", &end_str)?;
 
     println!(
-        "  {} Updates paused starting {} for {} days",
+        "  {} Updates paused for {} days (until {})",
         style(icons::SUCCESS).green(),
-        pause_date,
-        days
+        days,
+        end.format("%Y-%m-%d")
     );
     println!(
         "  {} Use 'winmole updates resume' to resume updates",
@@ -366,6 +386,23 @@ fn resume_updates(dry_run: bool) -> Result<()> {
     }
 
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    if let Ok(ux_key) = hklm.open_subkey_with_flags(
+        "SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings",
+        KEY_ALL_ACCESS,
+    ) {
+        for value in [
+            "PauseUpdatesStartTime",
+            "PauseUpdatesExpiryTime",
+            "PauseQualityUpdatesStartTime",
+            "PauseQualityUpdatesEndTime",
+            "PauseFeatureUpdatesStartTime",
+            "PauseFeatureUpdatesEndTime",
+        ] {
+            let _ = ux_key.delete_value(value);
+        }
+    }
+
+    // Also clear any pause set via the policy path (used by older versions)
     if let Ok(wu_key) = hklm.open_subkey_with_flags(
         "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
         KEY_ALL_ACCESS,
