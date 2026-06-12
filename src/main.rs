@@ -4,12 +4,13 @@ mod system;
 mod ui;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::Shell;
 
 #[derive(Parser)]
 #[command(name = "winmole")]
 #[command(author = "WinMole Contributors")]
-#[command(version = "1.0.0")]
+#[command(version)]
 #[command(about = "Windows System Optimization CLI", long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
@@ -23,6 +24,10 @@ struct Cli {
     /// Run a quick system scan
     #[arg(short, long)]
     quick: bool,
+
+    /// Increase log verbosity (-v: info, -vv: debug); logs go to stderr
+    #[arg(short, long, global = true, action = clap::ArgAction::Count)]
+    verbose: u8,
 }
 
 #[derive(Subcommand)]
@@ -201,6 +206,13 @@ enum Commands {
         check: bool,
     },
 
+    /// Generate shell completions (powershell, bash, zsh, fish, elvish)
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+
     /// Scan and fix common system issues
     Quickfix {
         /// Action: scan, fix-safe, interactive (default)
@@ -221,10 +233,19 @@ fn main() -> Result<()> {
     // Clean up leftover .old binary from a previous self-update
     commands::self_update::cleanup_old_binary();
 
-    // Initialize logging
-    tracing_subscriber::fmt::init();
-
     let cli = Cli::parse();
+
+    // Logging: WARN by default, -v for INFO, -vv for DEBUG. Logs go to
+    // stderr so they never mix with command output on stdout.
+    let log_level = match cli.verbose {
+        0 => tracing::Level::WARN,
+        1 => tracing::Level::INFO,
+        _ => tracing::Level::DEBUG,
+    };
+    tracing_subscriber::fmt()
+        .with_max_level(log_level)
+        .with_writer(std::io::stderr)
+        .init();
 
     // Handle quick scan
     if cli.quick {
@@ -300,6 +321,13 @@ fn main() -> Result<()> {
 
         Commands::SelfUpdate { check } => {
             commands::self_update::run(check)
+        }
+
+        Commands::Completions { shell } => {
+            let mut cmd = Cli::command();
+            let name = cmd.get_name().to_string();
+            clap_complete::generate(shell, &mut cmd, name, &mut std::io::stdout());
+            Ok(())
         }
     }
 }
