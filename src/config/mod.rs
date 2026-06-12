@@ -61,11 +61,14 @@ impl WinMoleConfig {
         }
     }
 
-    /// Save configuration to disk
+    /// Save configuration to disk atomically (temp file + rename) so a crash
+    /// mid-write can't corrupt the tweak/backup history.
     pub fn save(&self) -> Result<()> {
         let path = Self::config_path()?;
         let content = serde_json::to_string_pretty(self)?;
-        std::fs::write(&path, content)?;
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, content)?;
+        std::fs::rename(&tmp, &path)?;
         Ok(())
     }
 
