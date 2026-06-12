@@ -1,6 +1,6 @@
 [package]
 name = "winmole"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 authors = ["WinMole Contributors"]
 description = "Windows System Optimization CLI - Clean, analyze, and optimize your Windows system"
