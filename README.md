@@ -67,6 +67,20 @@ winmole -i
 winmole -q
 ```
 
+### Shell Completions
+
+```powershell
+# PowerShell (add to your profile)
+winmole completions powershell >> $PROFILE
+```
+
+Also supported: `bash`, `zsh`, `fish`, `elvish`.
+
+### Verbose Logging
+
+Add `-v` (info) or `-vv` (debug) to any command. Logs go to stderr, so they
+never mix with command output.
+
 The interactive TUI provides an intuitive menu-driven interface with:
 - ASCII art logo display
 - Easy navigation with arrow keys and Enter
