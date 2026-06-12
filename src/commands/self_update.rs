@@ -42,6 +42,7 @@ pub struct UpdateCheckResult {
     pub release_notes: Option<String>,
     pub asset_url: Option<String>,
     pub asset_size: Option<u64>,
+    pub checksum_url: Option<String>,
 }
 
 // ============================================================================
@@ -85,6 +86,19 @@ pub fn run(check_only: bool) -> Result<()> {
         }
 
         let binary = download_release(&asset_url, asset_size).await?;
+
+        match &result.checksum_url {
+            Some(url) => {
+                verify_checksum(&binary, url).await?;
+                println!("  {} Checksum verified", style(icons::SUCCESS).green());
+            }
+            None => {
+                super::print_warning(
+                    "No checksum published for this release — skipping integrity verification",
+                );
+            }
+        }
+
         replace_executable(&binary)?;
 
         println!();
@@ -225,8 +239,12 @@ async fn check_for_update() -> Result<UpdateCheckResult> {
         .parse()
         .with_context(|| format!("Invalid version in release tag: '{}'", release.tag_name))?;
 
-    // Find matching asset
+    // Find matching asset and its published checksum
     let asset = release.assets.iter().find(|a| a.name == ASSET_NAME);
+    let checksum_asset = release
+        .assets
+        .iter()
+        .find(|a| a.name == format!("{}.sha256", ASSET_NAME));
 
     Ok(UpdateCheckResult {
         update_available: latest_version > current_version,
@@ -236,6 +254,7 @@ async fn check_for_update() -> Result<UpdateCheckResult> {
         release_notes: release.body,
         asset_url: asset.map(|a| a.browser_download_url.clone()),
         asset_size: asset.map(|a| a.size),
+        checksum_url: checksum_asset.map(|a| a.browser_download_url.clone()),
     })
 }
 
@@ -342,7 +361,9 @@ async fn download_release(url: &str, size: u64) -> Result<Vec<u8>> {
     const MAX_BINARY_SIZE: usize = 100 * 1024 * 1024; // 100 MB
 
     let mut stream = response.bytes_stream();
-    let mut buffer = Vec::with_capacity(size as usize);
+    // Cap the pre-allocation: `size` comes from the API response and must not
+    // be able to trigger an arbitrarily large allocation before any data arrives.
+    let mut buffer = Vec::with_capacity((size as usize).min(MAX_BINARY_SIZE));
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.context("Error while downloading")?;
@@ -355,6 +376,49 @@ async fn download_release(url: &str, size: u64) -> Result<Vec<u8>> {
 
     pb.finish_with_message("Download complete");
     Ok(buffer)
+}
+
+/// Download the published .sha256 file and verify the binary's digest matches.
+async fn verify_checksum(binary: &[u8], checksum_url: &str) -> Result<()> {
+    use sha2::{Digest, Sha256};
+
+    let client = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .context("Failed to create HTTP client")?;
+
+    let text = client
+        .get(checksum_url)
+        .send()
+        .await
+        .context("Failed to download checksum file")?
+        .error_for_status()
+        .context("Checksum download failed")?
+        .text()
+        .await
+        .context("Failed to read checksum file")?;
+
+    // Accept "HASH" or "HASH  filename" formats
+    let expected = text
+        .split_whitespace()
+        .next()
+        .map(str::to_ascii_lowercase)
+        .filter(|h| h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit()))
+        .context("Published checksum file is malformed")?;
+
+    let actual = format!("{:x}", Sha256::digest(binary));
+
+    if actual != expected {
+        bail!(
+            "Checksum mismatch — the downloaded binary does not match the published \
+             SHA-256. Aborting update.\n  expected: {}\n  actual:   {}",
+            expected,
+            actual
+        );
+    }
+
+    Ok(())
 }
 
 // ============================================================================

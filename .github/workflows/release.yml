@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  ASSET_NAME: winmole-windows-x86_64.exe
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Prepare assets
+        shell: pwsh
+        run: |
+          Copy-Item target/release/winmole.exe $env:ASSET_NAME
+          $hash = (Get-FileHash $env:ASSET_NAME -Algorithm SHA256).Hash.ToLower()
+          "$hash  $env:ASSET_NAME" | Out-File -Encoding ascii -NoNewline "$env:ASSET_NAME.sha256"
+          Get-Content "$env:ASSET_NAME.sha256"
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            $env:ASSET_NAME "$env:ASSET_NAME.sha256" `
+            --title $env:GITHUB_REF_NAME `
+            --generate-notes

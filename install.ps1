@@ -80,14 +80,12 @@ try {
     catch {
         $status = $_.Exception.Response.StatusCode.value__
         if ($status -eq 403) {
-            Write-Err "GitHub API rate limit exceeded. Try again in a few minutes."
             Write-Warn "Or download manually: https://github.com/mrelph/WinMole/releases"
-            return
+            throw "GitHub API rate limit exceeded. Try again in a few minutes."
         }
         if ($status -eq 404) {
-            Write-Err "No releases found for WinMole."
             Write-Warn "Visit: https://github.com/mrelph/WinMole/releases"
-            return
+            throw "No releases found for WinMole."
         }
         throw
     }
@@ -100,13 +98,12 @@ try {
     $asset = $release.assets | Where-Object { $_.name -match '\.exe$' } | Select-Object -First 1
 
     if (-not $asset) {
-        Write-Err "No .exe asset found in release $tagName."
         Write-Warn "Available assets:"
         foreach ($a in $release.assets) {
             Write-Warn "  - $($a.name)"
         }
         Write-Warn "Download manually: $($release.html_url)"
-        return
+        throw "No .exe asset found in release $tagName."
     }
 
     $downloadUrl = $asset.browser_download_url
@@ -146,25 +143,41 @@ try {
         }
     }
     catch {
-        Write-Err "Download failed: $_"
         if (Test-Path $tempFile) { Remove-Item $tempFile -Force -ErrorAction SilentlyContinue }
-        return
+        throw "Download failed: $_"
     }
 
     # Verify the download produced a file
     if (-not (Test-Path $tempFile)) {
-        Write-Err "Downloaded file not found. Something went wrong."
-        return
+        throw "Downloaded file not found. Something went wrong."
     }
 
     $downloadedSize = (Get-Item $tempFile).Length
     if ($downloadedSize -eq 0) {
-        Write-Err "Downloaded file is empty."
         Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-        return
+        throw "Downloaded file is empty."
     }
 
     Write-Ok "Download complete ($([math]::Round($downloadedSize / 1MB, 2)) MB)"
+
+    # ── 4.5. Verify SHA-256 checksum if the release publishes one ─────────
+    $checksumAsset = $release.assets | Where-Object { $_.name -eq "$assetName.sha256" } | Select-Object -First 1
+
+    if ($checksumAsset) {
+        Write-Info "Verifying SHA-256 checksum..."
+        $checksumText = Invoke-RestMethod -Uri $checksumAsset.browser_download_url -Headers $headers
+        $expected = ([string]$checksumText -split '\s+')[0].ToLower()
+        $actual = (Get-FileHash $tempFile -Algorithm SHA256).Hash.ToLower()
+
+        if ($actual -ne $expected) {
+            Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+            throw "Checksum mismatch! Expected $expected but got $actual. Aborting install."
+        }
+        Write-Ok "Checksum verified"
+    }
+    else {
+        Write-Warn "No checksum published for this release - skipping verification"
+    }
 
     # ── 5. Install the binary ─────────────────────────────────────────────
     Write-Step "Installing to: $installPath"
@@ -177,10 +190,9 @@ try {
         Move-Item -Path $tempFile -Destination $installPath -Force
     }
     catch {
-        Write-Err "Failed to install binary: $_"
         Write-Warn "The file may be in use. Close any running WinMole instances and try again."
         if (Test-Path $tempFile) { Remove-Item $tempFile -Force -ErrorAction SilentlyContinue }
-        return
+        throw "Failed to install binary: $_"
     }
 
     Write-Ok "Installed winmole.exe successfully"
@@ -240,4 +252,7 @@ catch {
     Write-Host "    3. Download manually from:" -ForegroundColor White
     Write-Host "       https://github.com/mrelph/WinMole/releases" -ForegroundColor Cyan
     Write-Host ""
+    # Exit with a failure code when run as a script file (CI), but not when
+    # piped through iex - exiting there would close the user's shell.
+    if ($MyInvocation.MyCommand.Path) { exit 1 }
 }
