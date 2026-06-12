@@ -9,14 +9,19 @@ use crate::commands::optimize::is_elevated;
 use crate::system::cleanup::{get_temp_folders, get_browser_caches, CleanupTarget};
 use crate::ui::theme::{self, icons, boxes};
 
-pub fn run(dry_run: bool, categories: &[String], force: bool) -> Result<()> {
-    theme::print_section_header("System Cleanup");
+pub fn run(dry_run: bool, categories: &[String], force: bool, json: bool) -> Result<()> {
+    if json && !dry_run {
+        anyhow::bail!("--json requires --dry-run for clean (JSON mode never deletes)");
+    }
+
+    if !json {
+        theme::print_section_header("System Cleanup");
+        println!("  {} Scanning for cleanable files...", style(icons::PROGRESS).cyan());
+    }
 
     // Gather all cleanup targets
     let mut all_targets: Vec<CleanupTarget> = Vec::new();
     let all_categories = categories.iter().any(|c| c.to_lowercase() == "all");
-
-    println!("  {} Scanning for cleanable files...", style(icons::PROGRESS).cyan());
 
     for category in &["user", "system", "browser", "windows", "cache"] {
         if !all_categories && !categories.iter().any(|c| c.to_lowercase() == *category) {
@@ -39,14 +44,36 @@ pub fn run(dry_run: bool, categories: &[String], force: bool) -> Result<()> {
         }
     }
 
+    // Sort by size descending
+    all_targets.sort_by(|a, b| b.size.cmp(&a.size));
+
+    if json {
+        let targets: Vec<_> = all_targets
+            .iter()
+            .map(|t| {
+                serde_json::json!({
+                    "name": t.name,
+                    "path": t.path.to_string_lossy(),
+                    "size_bytes": t.size,
+                    "file_count": t.file_count,
+                    "requires_admin": t.requires_admin,
+                })
+            })
+            .collect();
+        let total: u64 = all_targets.iter().map(|t| t.size).sum();
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+            "dry_run": true,
+            "total_bytes": total,
+            "targets": targets,
+        }))?);
+        return Ok(());
+    }
+
     if all_targets.is_empty() {
         theme::print_success("Nothing to clean - system is already clean!");
         println!();
         return Ok(());
     }
-
-    // Sort by size descending
-    all_targets.sort_by(|a, b| b.size.cmp(&a.size));
 
     // Calculate total
     let total_available: u64 = all_targets.iter().map(|t| t.size).sum();

@@ -8,11 +8,15 @@ use walkdir::WalkDir;
 use crate::commands::format_size;
 use crate::ui::theme::{self, icons};
 
-pub fn run(path: &str, mode: &str, depth: usize, top: usize) -> Result<()> {
+pub fn run(path: &str, mode: &str, depth: usize, top: usize, json: bool) -> Result<()> {
     let path = PathBuf::from(path);
 
     if !path.exists() {
         return Err(anyhow::anyhow!("Path not found: {}", path.display()));
+    }
+
+    if json {
+        return run_json(&path, mode, top);
     }
 
     theme::print_section_header("Disk Analysis");
@@ -29,6 +33,117 @@ pub fn run(path: &str, mode: &str, depth: usize, top: usize) -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn run_json(path: &PathBuf, mode: &str, top_n: usize) -> Result<()> {
+    let output = match mode {
+        "largest-files" | "largestfiles" => {
+            let mut files: Vec<(PathBuf, u64)> = WalkDir::new(path)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file())
+                .filter_map(|e| e.metadata().ok().map(|m| (e.path().to_path_buf(), m.len())))
+                .collect();
+            files.sort_by(|a, b| b.1.cmp(&a.1));
+            serde_json::json!({
+                "mode": "largest-files",
+                "path": path.to_string_lossy(),
+                "files": files.iter().take(top_n).map(|(p, s)| serde_json::json!({
+                    "path": p.to_string_lossy(),
+                    "size_bytes": s,
+                })).collect::<Vec<_>>(),
+            })
+        }
+
+        "largest-folders" | "largestfolders" => {
+            let mut folders: Vec<(PathBuf, u64)> = Vec::new();
+            if let Ok(entries) = std::fs::read_dir(path) {
+                for entry in entries.flatten() {
+                    let entry_path = entry.path();
+                    if entry_path.is_dir() {
+                        let size = calculate_dir_size(&entry_path);
+                        folders.push((entry_path, size));
+                    }
+                }
+            }
+            folders.sort_by(|a, b| b.1.cmp(&a.1));
+            serde_json::json!({
+                "mode": "largest-folders",
+                "path": path.to_string_lossy(),
+                "folders": folders.iter().take(top_n).map(|(p, s)| serde_json::json!({
+                    "path": p.to_string_lossy(),
+                    "size_bytes": s,
+                })).collect::<Vec<_>>(),
+            })
+        }
+
+        "file-types" | "filetypes" => {
+            let mut extensions: HashMap<String, (u64, u64)> = HashMap::new();
+            for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
+                if entry.file_type().is_file() {
+                    let ext = entry.path()
+                        .extension()
+                        .map(|e| e.to_string_lossy().to_lowercase())
+                        .unwrap_or_else(|| "(none)".to_string());
+                    let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                    let e = extensions.entry(ext).or_insert((0, 0));
+                    e.0 += size;
+                    e.1 += 1;
+                }
+            }
+            let mut ext_vec: Vec<_> = extensions.into_iter().collect();
+            ext_vec.sort_by(|a, b| b.1.0.cmp(&a.1.0));
+            serde_json::json!({
+                "mode": "file-types",
+                "path": path.to_string_lossy(),
+                "types": ext_vec.iter().take(top_n).map(|(ext, (size, count))| serde_json::json!({
+                    "extension": ext,
+                    "size_bytes": size,
+                    "file_count": count,
+                })).collect::<Vec<_>>(),
+            })
+        }
+
+        "old-files" | "oldfiles" => {
+            let days = 365u32;
+            let cutoff = std::time::SystemTime::now()
+                - std::time::Duration::from_secs(days as u64 * 24 * 60 * 60);
+            let mut old_files: Vec<(PathBuf, u64, u64)> = Vec::new();
+            for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
+                if entry.file_type().is_file() {
+                    if let Ok(metadata) = entry.metadata() {
+                        if let Ok(modified) = metadata.modified() {
+                            if modified < cutoff {
+                                let age_days = modified.elapsed()
+                                    .map(|d| d.as_secs() / 86400)
+                                    .unwrap_or(0);
+                                old_files.push((entry.path().to_path_buf(), metadata.len(), age_days));
+                            }
+                        }
+                    }
+                }
+            }
+            old_files.sort_by(|a, b| b.1.cmp(&a.1));
+            serde_json::json!({
+                "mode": "old-files",
+                "path": path.to_string_lossy(),
+                "older_than_days": days,
+                "files": old_files.iter().take(top_n).map(|(p, s, age)| serde_json::json!({
+                    "path": p.to_string_lossy(),
+                    "size_bytes": s,
+                    "age_days": age,
+                })).collect::<Vec<_>>(),
+            })
+        }
+
+        other => anyhow::bail!(
+            "Mode '{}' is not supported with --json (supported: largest-files, largest-folders, file-types, old-files)",
+            other
+        ),
+    };
+
+    println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())
 }
 
