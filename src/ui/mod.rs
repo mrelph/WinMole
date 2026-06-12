@@ -79,7 +79,7 @@ pub fn run_tui() -> Result<()> {
                 theme::print_command_banner("System Cleanup", icons::CLEANUP, "Clean temp files and caches");
                 theme::print_breadcrumb(&["Main Menu", "System Cleanup"]);
 
-                commands::clean::run(true, &["user".to_string(), "browser".to_string(), "cache".to_string()], false)?;
+                commands::clean::run(true, &["user".to_string(), "browser".to_string(), "cache".to_string()], false, false)?;
 
                 println!();
                 let proceed = dialoguer::Confirm::new()
@@ -90,7 +90,7 @@ pub fn run_tui() -> Result<()> {
                 if proceed {
                     term.clear_screen()?;
                     theme::print_command_banner("System Cleanup", icons::CLEANUP, "Cleaning files...");
-                    commands::clean::run(false, &["user".to_string(), "browser".to_string(), "cache".to_string()], true)?;
+                    commands::clean::run(false, &["user".to_string(), "browser".to_string(), "cache".to_string()], true, false)?;
                     theme::print_success_animation("Cleanup completed successfully!");
                 }
 
@@ -170,7 +170,7 @@ pub fn run_tui() -> Result<()> {
 
                             term.clear_screen()?;
                             theme::print_command_banner("Disk Analysis", icons::DISK, mode);
-                            commands::disk::run(&path, mode, 3, 10)?;
+                            commands::disk::run(&path, mode, 3, 10, false)?;
                             wait_for_enter()?;
                         }
                     }
@@ -183,7 +183,7 @@ pub fn run_tui() -> Result<()> {
                 theme::print_command_banner("System Status", icons::STATUS, "Real-time system health");
                 theme::print_breadcrumb(&["Main Menu", "System Status"]);
 
-                commands::status::run(false, 2)?;
+                commands::status::run(false, 2, false)?;
 
                 let live = dialoguer::Confirm::new()
                     .with_prompt("Enable live monitoring?")
@@ -193,7 +193,7 @@ pub fn run_tui() -> Result<()> {
                 if live {
                     println!();
                     theme::print_info("Press Ctrl+C to stop monitoring");
-                    commands::status::run(true, 2)?;
+                    commands::status::run(true, 2, false)?;
                 }
 
                 wait_for_enter()?;
@@ -773,7 +773,7 @@ fn run_profiles_menu(term: &Term) -> Result<()> {
                 println!();
 
                 // First do a dry run
-                commands::optimize::run("apply", None, Some(&profile.id), true)?;
+                commands::optimize::run("apply", None, Some(&profile.id), true, false)?;
 
                 println!();
                 let proceed = dialoguer::Confirm::new()
@@ -792,7 +792,7 @@ fn run_profiles_menu(term: &Term) -> Result<()> {
 
                     term.clear_screen()?;
                     theme::print_command_banner(&format!("{} Profile", profile.name), icons::PERFORMANCE, "Applying tweaks...");
-                    commands::optimize::run("apply", None, Some(&profile.id), false)?;
+                    commands::optimize::run("apply", None, Some(&profile.id), false, false)?;
                     theme::print_success_animation(&format!("{} profile applied successfully!", profile.name));
                 }
 

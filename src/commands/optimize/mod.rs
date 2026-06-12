@@ -887,11 +887,18 @@ impl TweakExecutor {
 // ============================================================================
 
 /// Run the optimize command
-pub fn run(action: &str, category: Option<&str>, profile: Option<&str>, dry_run: bool) -> Result<()> {
+pub fn run(action: &str, category: Option<&str>, profile: Option<&str>, dry_run: bool, json: bool) -> Result<()> {
     let registry = TweakRegistry::new();
     let executor = TweakExecutor::new(dry_run);
 
+    if json && action != "list" {
+        return Err(anyhow!(
+            "--json is only supported for 'optimize --action list'"
+        ));
+    }
+
     match action {
+        "list" if json => list_tweaks_json(&registry, category),
         "list" => list_tweaks(&registry, category),
         "status" => show_status(&registry, &executor, category),
         "apply" => {
@@ -910,6 +917,49 @@ pub fn run(action: &str, category: Option<&str>, profile: Option<&str>, dry_run:
         }
         _ => Err(anyhow!("Unknown action: {}", action)),
     }
+}
+
+/// List available tweaks as JSON
+fn list_tweaks_json(registry: &TweakRegistry, category_filter: Option<&str>) -> Result<()> {
+    let category_filter = parse_category_filter(category_filter);
+
+    let mut tweaks: Vec<_> = registry.all().collect();
+    tweaks.sort_by(|a, b| a.id.cmp(&b.id));
+
+    if let Some(cat) = category_filter {
+        tweaks.retain(|t| t.category == cat);
+    }
+
+    let items: Vec<_> = tweaks
+        .iter()
+        .map(|t| {
+            serde_json::json!({
+                "id": t.id,
+                "name": t.name,
+                "description": t.description,
+                "category": t.category.to_string(),
+                "risk": t.risk.to_string(),
+                "requires_admin": t.needs_admin(),
+                "requires_restart": t.requires_restart,
+            })
+        })
+        .collect();
+
+    println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "tweaks": items }))?);
+    Ok(())
+}
+
+fn parse_category_filter(category: Option<&str>) -> Option<TweakCategory> {
+    category.and_then(|c| match c {
+        "performance" => Some(TweakCategory::Performance),
+        "privacy" => Some(TweakCategory::Privacy),
+        "network" => Some(TweakCategory::Network),
+        "memory" => Some(TweakCategory::Memory),
+        "hardware" => Some(TweakCategory::Hardware),
+        "ui" => Some(TweakCategory::UIResponsiveness),
+        "debloat" => Some(TweakCategory::Debloat),
+        _ => None,
+    })
 }
 
 /// List available tweaks

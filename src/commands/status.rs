@@ -16,12 +16,62 @@ thread_local! {
     static PREV_DISK: Cell<f64> = Cell::new(0.0);
 }
 
-pub fn run(live: bool, interval: u64) -> Result<()> {
+pub fn run(live: bool, interval: u64, json: bool) -> Result<()> {
+    if json {
+        if live {
+            anyhow::bail!("--live is not compatible with --json (emits a single snapshot)");
+        }
+        return run_json();
+    }
     if live {
         run_live(interval)
     } else {
         run_once()
     }
+}
+
+fn run_json() -> Result<()> {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    let health = get_health_score()?;
+
+    let total_mem = sys.total_memory();
+    let used_mem = sys.used_memory();
+
+    let disks: Vec<_> = Disks::new_with_refreshed_list()
+        .iter()
+        .map(|d| {
+            let total = d.total_space();
+            let available = d.available_space();
+            let used = total.saturating_sub(available);
+            serde_json::json!({
+                "name": d.name().to_string_lossy(),
+                "mount_point": d.mount_point().to_string_lossy(),
+                "total_bytes": total,
+                "available_bytes": available,
+                "used_percent": if total > 0 { used as f64 / total as f64 * 100.0 } else { 0.0 },
+            })
+        })
+        .collect();
+
+    let output = serde_json::json!({
+        "health": {
+            "score": health.score,
+            "status": health.status,
+            "recommendations": health.recommendations,
+        },
+        "cpu_usage_percent": sys.global_cpu_usage(),
+        "memory": {
+            "total_bytes": total_mem,
+            "used_bytes": used_mem,
+            "used_percent": if total_mem > 0 { used_mem as f64 / total_mem as f64 * 100.0 } else { 0.0 },
+        },
+        "disks": disks,
+    });
+
+    println!("{}", serde_json::to_string_pretty(&output)?);
+    Ok(())
 }
 
 fn run_once() -> Result<()> {

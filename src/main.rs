@@ -28,6 +28,11 @@ struct Cli {
     /// Increase log verbosity (-v: info, -vv: debug); logs go to stderr
     #[arg(short, long, global = true, action = clap::ArgAction::Count)]
     verbose: u8,
+
+    /// Output machine-readable JSON to stdout (status, disk, clean --dry-run,
+    /// optimize --list); suppresses colors, spinners, and prompts
+    #[arg(long, global = true)]
+    json: bool,
 }
 
 #[derive(Subcommand)]
@@ -254,22 +259,30 @@ fn main() -> Result<()> {
 
     // Handle interactive mode or no subcommand
     if cli.interactive || cli.command.is_none() {
+        if cli.json {
+            anyhow::bail!("--json requires a subcommand (it cannot drive the interactive TUI)");
+        }
         return ui::run_tui();
     }
 
+    let json = cli.json;
+    if json {
+        console::set_colors_enabled(false);
+    }
+
     // Handle subcommands
-    match cli.command.unwrap() {
+    let result = match cli.command.unwrap() {
         Commands::Clean { dry_run, category, force } => {
             let categories = category.unwrap_or_else(|| vec!["user".to_string(), "browser".to_string(), "cache".to_string()]);
-            commands::clean::run(dry_run, &categories, force)
+            commands::clean::run(dry_run, &categories, force, json)
         }
 
         Commands::Disk { path, mode, depth, top } => {
-            commands::disk::run(&path, &mode, depth, top)
+            commands::disk::run(&path, &mode, depth, top, json)
         }
 
         Commands::Status { live, interval } => {
-            commands::status::run(live, interval)
+            commands::status::run(live, interval, json)
         }
 
         Commands::Dev { path, types, older_than, dry_run, force } => {
@@ -304,7 +317,7 @@ fn main() -> Result<()> {
         }
 
         Commands::Optimize { action, category, profile, dry_run } => {
-            commands::optimize::run(&action, category.as_deref(), profile.as_deref(), dry_run)
+            commands::optimize::run(&action, category.as_deref(), profile.as_deref(), dry_run, json)
         }
 
         Commands::Debloat { action, app, dry_run } => {
@@ -329,5 +342,17 @@ fn main() -> Result<()> {
             clap_complete::generate(shell, &mut cmd, name, &mut std::io::stdout());
             Ok(())
         }
+    };
+
+    // In JSON mode, errors also go to stdout as JSON so consumers can parse
+    // a single stream.
+    if json {
+        if let Err(e) = result {
+            println!("{}", serde_json::json!({ "error": e.to_string() }));
+            std::process::exit(1);
+        }
+        return Ok(());
     }
+
+    result
 }

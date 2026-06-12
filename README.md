@@ -81,6 +81,18 @@ Also supported: `bash`, `zsh`, `fish`, `elvish`.
 Add `-v` (info) or `-vv` (debug) to any command. Logs go to stderr, so they
 never mix with command output.
 
+### JSON Output
+
+Add `--json` for machine-readable output (suppresses colors, spinners, and
+prompts; errors are emitted as `{"error": "..."}` on stdout):
+
+```bash
+winmole --json status
+winmole --json disk C:\ --mode largest-files --top 20
+winmole --json clean --dry-run
+winmole --json optimize --action list
+```
+
 The interactive TUI provides an intuitive menu-driven interface with:
 - ASCII art logo display
 - Easy navigation with arrow keys and Enter
