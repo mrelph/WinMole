@@ -82,11 +82,22 @@ fn show_update_status() -> Result<()> {
     let mut status = UpdatePauseStatus::default();
 
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    if let Ok(wu_key) = hklm.open_subkey("SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate") {
-        // Check pause dates
-        if let Ok(val) = wu_key.get_value::<String, _>("PauseQualityUpdatesStartTime") {
+
+    // Pause state set by `winmole updates pause` (and the Settings app)
+    if let Ok(ux_key) = hklm.open_subkey("SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings") {
+        if let Ok(val) = ux_key.get_value::<String, _>("PauseUpdatesExpiryTime") {
             status.is_paused = true;
             status.pause_until = Some(val);
+        }
+    }
+
+    if let Ok(wu_key) = hklm.open_subkey("SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate") {
+        // Pause set via the policy path (older WinMole versions / group policy)
+        if let Ok(val) = wu_key.get_value::<String, _>("PauseQualityUpdatesStartTime") {
+            if !status.is_paused {
+                status.is_paused = true;
+                status.pause_until = Some(val);
+            }
         }
 
         // Check driver exclusion
