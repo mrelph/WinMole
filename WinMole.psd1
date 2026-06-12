@@ -1,7 +1,7 @@
 @{
     # Module manifest for WinMole
     RootModule = 'WinMole.psm1'
-    ModuleVersion = '1.0.0'
+    ModuleVersion = '2.0.0'
     GUID = 'a8c9d4e5-f6b7-4c8d-9e0f-1a2b3c4d5e6f'
     Author = 'WinMole Contributors'
     CompanyName = 'Community'
