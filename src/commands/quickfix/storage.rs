@@ -365,7 +365,7 @@ fn scan_icon_cache(issues: &mut Vec<Issue>) {
                             FixAction::PowerShellCommand {
                                 script: format!(
                                     "Remove-Item '{}\\iconcache_*.db' -Force -ErrorAction SilentlyContinue",
-                                    cache_dir.to_string_lossy()
+                                    cache_dir.to_string_lossy().replace('\'', "''")
                                 ),
                                 description: "Delete icon cache files".to_string(),
                                 requires_admin: false,

@@ -424,7 +424,10 @@ fn analyze_services() -> Result<()> {
                         print!("  {} Starting {}... ", style(icons::PROGRESS).cyan(), name);
 
                         let result = Command::new("powershell")
-                            .args(["-Command", &format!("Start-Service -Name '{}'", name)])
+                            .args(["-Command", &format!(
+                                "Start-Service -Name '{}'",
+                                name.replace('\'', "''")
+                            )])
                             .output();
 
                         match result {
