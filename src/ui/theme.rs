@@ -108,7 +108,7 @@ pub fn print_section_header(title: &str) {
     println!("  {} {} {}",
         style(boxes::L_HORIZONTAL.repeat(3)).cyan(),
         style(title).cyan().bold(),
-        style(boxes::L_HORIZONTAL.repeat(50 - title.len())).cyan()
+        style(boxes::L_HORIZONTAL.repeat(50usize.saturating_sub(title.len()))).cyan()
     );
     println!();
 }
@@ -191,7 +191,7 @@ pub fn print_result_summary(title: &str, stats: &[(&str, String)], recommendatio
         style(boxes::TOP_LEFT).cyan().bold(),
         style(boxes::HORIZONTAL).cyan(),
         style(title).cyan().bold(),
-        style(boxes::HORIZONTAL.repeat(55 - title.len())).cyan(),
+        style(boxes::HORIZONTAL.repeat(55usize.saturating_sub(title.len()))).cyan(),
         style(boxes::TOP_RIGHT).cyan()
     );
 
@@ -392,7 +392,9 @@ pub fn truncate_str(s: &str, max_len: usize) -> String {
 
 /// Strip ANSI codes from string (for width calculation)
 fn strip_ansi(s: &str) -> String {
-    let re = regex::Regex::new(r"\x1b\[[0-9;]*m").unwrap();
+    use std::sync::OnceLock;
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| regex::Regex::new(r"\x1b\[[0-9;]*m").unwrap());
     re.replace_all(s, "").to_string()
 }
 
