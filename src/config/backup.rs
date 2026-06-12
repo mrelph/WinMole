@@ -65,9 +65,11 @@ impl BackupManager {
             description
         );
 
+        // Single-quoted PS string: no $/backtick/subexpression expansion;
+        // only ' needs escaping (as '').
         let script = format!(
-            r#"Checkpoint-Computer -Description "{}" -RestorePointType MODIFY_SETTINGS"#,
-            description.replace('"', "'")
+            "Checkpoint-Computer -Description '{}' -RestorePointType MODIFY_SETTINGS",
+            description.replace('\'', "''")
         );
 
         let output = Command::new("powershell")
