@@ -1071,6 +1071,7 @@ fn apply_profile(
                 style(icons::WARNING).yellow(),
                 tweak_id
             );
+            fail_count += 1;
         }
     }
 
@@ -1144,6 +1145,13 @@ fn revert_profile(
                     fail_count += 1;
                 }
             }
+        } else {
+            println!(
+                "  {} Tweak '{}' not found",
+                style(icons::WARNING).yellow(),
+                tweak_id
+            );
+            fail_count += 1;
         }
     }
 
