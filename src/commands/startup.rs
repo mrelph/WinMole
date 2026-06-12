@@ -143,12 +143,12 @@ fn list_startup_items(show_impact: bool) -> Result<()> {
 
     // Registry Run keys
     let registry_locations = [
-        (HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", "User"),
-        (HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", "Machine"),
-        (HKEY_LOCAL_MACHINE, "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run", "Machine (32-bit)"),
+        (HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
+        (HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
+        (HKEY_LOCAL_MACHINE, "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run"),
     ];
 
-    for (hkey, path, scope) in &registry_locations {
+    for (hkey, path) in &registry_locations {
         let root = RegKey::predef(*hkey);
         if let Ok(run_key) = root.open_subkey(path) {
             for (name, value) in run_key.enum_values().filter_map(|v| v.ok()) {
@@ -170,11 +170,8 @@ fn list_startup_items(show_impact: bool) -> Result<()> {
 
                 items.push(StartupItem {
                     name,
-                    command,
                     source: "Registry".to_string(),
-                    scope: scope.to_string(),
                     enabled: true,
-                    publisher,
                     category: category.to_string(),
                     impact,
                 });
@@ -192,11 +189,8 @@ fn list_startup_items(show_impact: bool) -> Result<()> {
                     if path.extension().map(|e| e == "lnk").unwrap_or(false) {
                         items.push(StartupItem {
                             name: path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
-                            command: path.to_string_lossy().to_string(),
                             source: "Startup Folder".to_string(),
-                            scope: "User".to_string(),
                             enabled: true,
-                            publisher: "Unknown".to_string(),
                             category: "Third-party".to_string(),
                             impact: "Unknown".to_string(),
                         });
@@ -320,7 +314,6 @@ fn analyze_boot_impact() -> Result<()> {
 
     println!("  {}", style("╔══════════════════════════════════════════════════╗").cyan());
 
-    let total = high_impact.len() + medium_impact.len() + low_impact.len();
     let estimated_impact = high_impact.len() * 4 + medium_impact.len() * 2 + low_impact.len();
 
     let impact_level = if estimated_impact > 20 { "High" }
@@ -468,11 +461,8 @@ fn enable_item(name: Option<&str>) -> Result<()> {
 #[cfg(windows)]
 struct StartupItem {
     name: String,
-    command: String,
     source: String,
-    scope: String,
     enabled: bool,
-    publisher: String,
     category: String,
     impact: String,
 }
