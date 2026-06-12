@@ -263,7 +263,7 @@ fn clean_target(target: &CleanupTarget) -> Result<(u64, u64)> {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.contains(pattern.trim_start_matches('*').trim_end_matches('*')) {
+                    if crate::system::cleanup::glob_match(pattern, name) {
                         if let Ok(metadata) = fs::metadata(&path) {
                             let size = metadata.len();
                             match fs::remove_file(&path) {

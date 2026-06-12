@@ -266,21 +266,68 @@ fn calculate_size(path: &PathBuf) -> u64 {
 }
 
 fn calculate_pattern_size(path: &PathBuf, pattern: &str) -> u64 {
-    let pattern_core = pattern.trim_start_matches('*').trim_end_matches('*');
-
     if let Ok(entries) = std::fs::read_dir(path) {
         entries
             .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.file_name()
-                    .to_string_lossy()
-                    .contains(pattern_core)
-            })
+            .filter(|e| glob_match(pattern, &e.file_name().to_string_lossy()))
             .filter_map(|e| e.metadata().ok())
             .map(|m| m.len())
             .sum()
     } else {
         0
+    }
+}
+
+/// Case-insensitive glob match supporting `*` (any run of chars) and `?`
+/// (exactly one char). Anchored at both ends: `*.log` does not match
+/// `app.log.bak`. Windows filenames are case-insensitive, so the comparison is too.
+pub fn glob_match(pattern: &str, name: &str) -> bool {
+    fn matches(p: &[char], n: &[char]) -> bool {
+        match (p.split_first(), n.split_first()) {
+            (None, None) => true,
+            (Some(('*', rest)), _) => {
+                matches(rest, n) || (!n.is_empty() && matches(p, &n[1..]))
+            }
+            (Some(('?', p_rest)), Some((_, n_rest))) => matches(p_rest, n_rest),
+            (Some((pc, p_rest)), Some((nc, n_rest))) if pc == nc => matches(p_rest, n_rest),
+            _ => false,
+        }
+    }
+    let p: Vec<char> = pattern.to_lowercase().chars().collect();
+    let n: Vec<char> = name.to_lowercase().chars().collect();
+    matches(&p, &n)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::glob_match;
+
+    #[test]
+    fn suffix_patterns_are_anchored() {
+        assert!(glob_match("*.log", "app.log"));
+        assert!(!glob_match("*.log", "app.log.bak"));
+        assert!(glob_match("*.tmp", "X.TMP"));
+    }
+
+    #[test]
+    fn infix_star_matches() {
+        assert!(glob_match("thumbcache_*.db", "thumbcache_1024.db"));
+        assert!(glob_match("thumbcache_*.db", "thumbcache_.db"));
+        assert!(!glob_match("thumbcache_*.db", "iconcache_1024.db"));
+        assert!(!glob_match("thumbcache_*.db", "thumbcache_1024.db.old"));
+    }
+
+    #[test]
+    fn question_mark_matches_single_char() {
+        assert!(glob_match("file?.txt", "file1.txt"));
+        assert!(!glob_match("file?.txt", "file12.txt"));
+        assert!(!glob_match("file?.txt", "file.txt"));
+    }
+
+    #[test]
+    fn literal_patterns_must_match_exactly() {
+        assert!(glob_match("desktop.ini", "Desktop.ini"));
+        assert!(!glob_match("desktop.ini", "desktop.ini.bak"));
     }
 }
 
