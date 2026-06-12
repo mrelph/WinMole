@@ -111,8 +111,10 @@ fn scan_smart_counters(issues: &mut Vec<Issue>) {
                         }
                     }
                     Err(_) => {
-                        // Fallback: if JSON parsing fails, check for non-zero values with regex-like approach
-                        text.contains("ReadErrorsTotal") || text.contains("WriteErrorsTotal")
+                        // JSON parse failed — we can't tell whether counters are
+                        // non-zero, so don't raise a false alarm on field names
+                        // that appear in every response.
+                        false
                     }
                 };
 
