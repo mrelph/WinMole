@@ -27,7 +27,7 @@ Or download the latest binary from [GitHub Releases](https://github.com/mrelph/W
 - **Startup Optimizer** - List, enable, and disable startup items with impact analysis
 - **System Diagnostics** - Process analysis, memory analysis, service analysis
 - **Quick Scan** - Fast system health check with recommendations
-- **Interactive TUI** - Beautiful ASCII art logo and intuitive menu navigation with looping submenus
+- **Interactive Dashboard** - Persistent full-screen system insight, staged actions, and a command palette
 - **Transactional Tweaks** - Capture typed before/after state, verify outcomes, roll back partial failures, and keep a durable operation journal
 
 ## Installation
@@ -94,12 +94,10 @@ winmole --json clean --dry-run
 winmole --json optimize --action list
 ```
 
-The interactive TUI provides an intuitive menu-driven interface with:
-- ASCII art logo display
-- Easy navigation with arrow keys and Enter
-- Submenus that loop back to main menu
-- Preview modes for all destructive operations
-- Confirmation prompts for safety
+The interactive TUI opens directly into a live dashboard with CPU, memory, disk,
+cleanup, startup-impact, and health information. Seven persistent modules share
+one interaction model: arrows move, Space stages, and Enter applies. No change
+is made while merely navigating or toggling a row.
 
 ## Commands
 
@@ -115,13 +113,14 @@ winmole clean --category user,browser,cache
 # Clean with force (no confirmations)
 winmole clean --force
 
-# Interactive mode shows preview first, then asks for confirmation
-winmole  # Select "System Cleanup" from the menu
+# Dashboard cleanup module with live preview
+winmole  # Press 2
 ```
 
 **Categories:** `user`, `system`, `windows`, `browser`, `cache`, `all`
 
-The interactive mode provides category selection and always shows a preview before cleaning.
+The dashboard Cleanup module scans in the background, preselects safe targets,
+recomputes its preview on each toggle, and changes nothing until Enter is pressed.
 
 ### Disk Analysis
 
@@ -141,13 +140,14 @@ winmole disk C:\ --mode file-types
 # Find old files (files not modified recently)
 winmole disk C:\Downloads --mode old-files
 
-# Interactive mode with submenu
-winmole  # Select "Disk Analysis", then choose mode
+# Dashboard tree view
+winmole  # Press 3
 ```
 
 **Modes:** `tree`, `largest-files`, `largest-folders`, `file-types`, `old-files`
 
-The interactive submenu loops, allowing you to run multiple analysis modes without returning to the main menu. Select "Back to Main Menu" when done.
+The dashboard shows the largest immediate folders in a persistent tree view.
+Use the CLI modes above for file-type, old-file, and deep custom-path analyses.
 
 ### System Status
 
@@ -177,8 +177,8 @@ winmole dev ~/Code --older-than 30
 # Force cleanup (skip confirmation)
 winmole dev ~/Projects --force
 
-# Interactive mode with preview and confirmation
-winmole  # Select "Developer Cleanup", enter path, review preview, confirm
+# Interactive CLI selection with preview and confirmation
+winmole dev ~/Projects
 ```
 
 **Default Types:** `node_modules`, `target`, `bin`, `obj`
@@ -205,20 +205,13 @@ winmole winget search vscode
 # Export package list
 winmole winget export
 
-# Interactive mode with submenu
-winmole  # Select "Package Manager"
+# Dashboard package audit and staged updates
+winmole  # Press 5
 ```
 
-**Interactive Actions:**
-- List Installed - View all installed packages
-- Check for Updates - Audit available updates
-- Update All - Update all packages with confirmation
-- Update Selected - Interactively select packages to update
-- Uninstall Package - Interactively select packages to remove
-- Search Packages - Search for new packages
-- Export Package List - Export to JSON file
-
-The Package Manager submenu loops, allowing multiple operations. All operations show progress and require confirmation for destructive actions.
+The dashboard Packages module audits updates in the background and stages selected
+upgrades. Listing, search, install, uninstall, export, and update-all remain
+available through the explicit CLI commands.
 
 ### Configuration Audit
 
@@ -236,11 +229,9 @@ winmole registry --mode remediate --finding <finding-id>
 
 **Categories:** `invalid_paths`, `missing_dlls`, `orphaned_software`
 
-**Interactive Scan Types:**
-- Full Registry Scan - Scan all categories
-- Scan Invalid Paths Only - Check for broken file paths
-- Scan Missing DLLs Only - Find references to missing DLL files
-- Scan Orphaned Software Only - Detect uninstalled software remnants
+The dashboard Registry module (`6`) scans all categories on entry, groups the
+findings, shows evidence in the preview pane, and allows staging only findings
+with exact-value remediation.
 
 Every finding includes stable identity, severity, location, and evidence. Orphaned software registrations remain review-only. Invalid App Paths and missing SharedDLL values can be remediated individually through the same typed snapshot, verification, journal, and restore path used by performance tweaks.
 
@@ -327,17 +318,12 @@ winmole startup --action disable --name "Discord"
 # Enable a startup item
 winmole startup --action enable --name "Discord"
 
-# Interactive mode with submenu
-winmole  # Select "Startup Optimizer"
+# Dashboard startup manager
+winmole  # Press 4
 ```
 
-**Interactive Actions:**
-- List Startup Items - View all startup programs with impact info
-- Boot Impact Analysis - Detailed boot performance analysis
-- Disable Item - Interactively select and disable startup items
-- Enable Item - Interactively select and enable startup items
-
-The Startup Optimizer submenu loops, allowing you to manage multiple items without exiting. Shows current status and impact for each item.
+The dashboard Startup module stages ON/OFF changes with a live boot-impact
+estimate. Registry state is not changed until Enter is pressed.
 
 ### System Diagnostics
 
@@ -354,8 +340,6 @@ winmole diagnose memory
 # Service analysis (Windows services status)
 winmole diagnose services
 
-# Interactive mode with submenu
-winmole  # Select "System Diagnostics"
 ```
 
 **Diagnostic Types:**
@@ -364,11 +348,12 @@ winmole  # Select "System Diagnostics"
 - Service Analysis - Check Windows services status and configuration
 - Run All Diagnostics - Execute all diagnostic checks
 
-The System Diagnostics submenu loops, allowing you to run multiple diagnostic types for comprehensive system analysis.
+Diagnostics remain explicit CLI workflows so their detailed reports can use the
+full terminal without competing with the persistent dashboard.
 
 ## Interactive Mode
 
-Launch the interactive TUI menu:
+Launch the full-screen dashboard:
 
 ```bash
 winmole
@@ -377,48 +362,42 @@ winmole -i
 ```
 
 **Features:**
-- ASCII art WinMole logo on startup
-- Main menu with all major features
-- Looping submenus for Disk Analysis, Package Manager, Registry Scan, Startup Optimizer, Performance, Updates, and System Diagnostics
-- "Back to Main Menu" option in all submenus for easy navigation
-- Preview modes for all destructive operations
-- Confirmation prompts for safety
-- Clear visual feedback with colored output
+- Live CPU, memory, disk, uptime, health, cleanable-space, and startup-impact summaries
+- Persistent left rail for Dashboard, Cleanup, Disk, Startup, Packages, Registry, and Optimize
+- Background scans and applies keep navigation, spinners, and progress responsive
+- Staged cleanup, startup, package, registry, and optimization changes
+- Live selection previews and explicit Enter-to-apply behavior
+- Risk badges and typed confirmation for risky or dangerous optimization changes
+- `:` command palette with CLI-shaped commands
 
 **Navigation:**
-- Use arrow keys (Up/Down) to navigate menu options
-- Press Enter to select
-- Follow on-screen prompts for confirmations
-- Press Ctrl+C to exit at any time
-
-**Menu Structure:**
-1. System Cleanup - Interactive category selection with preview
-2. Disk Analysis - Submenu with 5 analysis modes
-3. System Status - Live monitoring option
-4. Developer Cleanup - Interactive path and type selection
-5. Package Manager - Submenu with 7 package operations
-6. Registry Scan - Submenu with 4 scan types
-7. Startup Optimizer - Submenu with 4 management actions
-8. System Diagnostics - Submenu with 4 diagnostic types
-9. Quick Scan - Fast system health check
-10. Quick Fix - Scan and repair common issues
-11. Performance - Profiles, individual tweaks, debloat, and history
-12. Windows Updates - Inspect and manage update settings
-13. Self Update - Check for WinMole releases
-14. Exit - Clean exit with ASCII art goodbye
+- `1`-`7` jumps directly to a module
+- `↑` / `↓` moves through rows
+- `Space` stages or unstages the highlighted row
+- `a` selects safe or applicable rows
+- `Enter` applies the staged plan
+- `r` rescans the active module
+- `Esc` returns to the dashboard
+- `:` opens the command palette
+- `q` or `Ctrl+C` exits
 
 ## Example Output
 
-### ASCII Logo (Main Menu)
+### Interactive Dashboard
 ```
-    __      __.__        _____         .__
-    /  \    /  \__| _____/     \   ____ |  |   ____
-    \   \/\/   /  |/    \  Y  /  /  _ \|  | _/ __ \
-     \        /|  |   |  \   /  (  <_> )  |_\  ___/
-      \__/\  / |__|___|  /\_/    \____/|____/\___  >
-           \/          \/                        \/
-
-         🐾 Windows System Optimization Tool 🐾
+▲ WinMole  v2.2.0                  health 87 · 2.7 GB cleanable · up 3d 14:23
+─────────────────────────────────────────────────────────────────────────────
+❯[1] Dashboard  │  CPU 12.3%       MEMORY 58.2%       DISK C: 82.4%
+ [2] Cleanup    │  ███░░░░░░░      ██████░░░░         ████████░░
+ [3] Disk       │
+ [4] Startup    │  CLEANABLE                    STARTUP IMPACT
+ [5] Packages   │  User temp       1.8 GB       Discord             [High]
+ [6] Registry   │  Browser cache   512 MB       OneDrive            [Med]
+ [7] Optimize   │
+                │  RECOMMENDATIONS
+                │  ⚠ Disk space is low — cleaning can reclaim space → 2
+─────────────────────────────────────────────────────────────────────────────
+1-7 modules · Esc dashboard · q quit                              : palette
 ```
 
 ### Quick Scan Output
@@ -473,7 +452,7 @@ Built with modern Rust for performance, reliability, and safety:
 - **Tokio** - Async runtime for responsive operations
 - **Windows API** - Direct Windows system integration via windows-rs
 - **Sysinfo** - System information (CPU, memory, disk)
-- **Dialoguer** - Interactive CLI prompts
+- **Dialoguer** - Specialist prompts used by non-dashboard CLI workflows
 
 **Why Rust?**
 - Memory safety without garbage collection
@@ -490,7 +469,7 @@ Built with modern Rust for performance, reliability, and safety:
 - **Confirmation prompts** - All important operations require explicit confirmation
 - **Safe deletion** - Files in use are skipped gracefully with error handling
 - **Interactive selection** - Choose exactly what to clean/update/remove
-- **Looping menus** - Easy to review and make multiple changes safely
+- **Staged dashboard plans** - Review multiple changes before one explicit apply
 
 ## Project History
 

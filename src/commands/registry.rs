@@ -14,20 +14,20 @@ use crate::ui::theme;
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum AuditSeverity {
+pub enum AuditSeverity {
     #[cfg(windows)]
     Warning,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct AuditFinding {
-    id: String,
-    category: String,
-    severity: AuditSeverity,
-    name: String,
-    location: String,
-    evidence: String,
-    remediable: bool,
+pub struct AuditFinding {
+    pub id: String,
+    pub category: String,
+    pub severity: AuditSeverity,
+    pub name: String,
+    pub location: String,
+    pub evidence: String,
+    pub remediable: bool,
     #[serde(skip)]
     remediation: Option<TweakAction>,
 }
@@ -43,13 +43,7 @@ pub fn run(
         bail!("Registry mode must be one of: audit, scan, remediate");
     }
 
-    #[cfg(not(windows))]
-    let findings: Vec<AuditFinding> = {
-        let _ = categories;
-        Vec::new()
-    };
-    #[cfg(windows)]
-    let findings = scan_windows(categories)?;
+    let findings = scan_findings(categories)?;
 
     if mode == "remediate" {
         let finding_id =
@@ -58,6 +52,19 @@ pub fn run(
     }
 
     print_findings(&findings, json)
+}
+
+/// Return structured configuration findings without printing.
+pub fn scan_findings(categories: &[String]) -> Result<Vec<AuditFinding>> {
+    #[cfg(not(windows))]
+    {
+        let _ = categories;
+        Ok(Vec::new())
+    }
+    #[cfg(windows)]
+    {
+        scan_windows(categories)
+    }
 }
 
 fn print_findings(findings: &[AuditFinding], json: bool) -> Result<()> {
@@ -109,28 +116,7 @@ fn remediate(findings: &[AuditFinding], finding_id: &str, dry_run: bool, json: b
         .iter()
         .find(|finding| finding.id == finding_id)
         .ok_or_else(|| anyhow!("Audit finding '{}' was not found", finding_id))?;
-    let action = finding.remediation.clone().ok_or_else(|| {
-        anyhow!(
-            "Finding '{}' is review-only and has no safe automatic remediation",
-            finding_id
-        )
-    })?;
-    let tweak = Tweak {
-        id: format!("audit_{finding_id}"),
-        name: format!("Remediate {}", finding.name),
-        description: finding.evidence.clone(),
-        category: TweakCategory::Hardware,
-        risk: TweakRisk::Moderate,
-        requires_admin: action.requires_admin(),
-        requires_restart: false,
-        apply_actions: vec![action],
-        revert_actions: Vec::new(),
-        tags: vec!["audit".to_string()],
-    };
-    let result = TweakExecutor::new(dry_run).apply_as(&tweak, OperationKind::AuditRemediation)?;
-    if result.success && !dry_run {
-        record_tweak_applied(&tweak.id, &result);
-    }
+    let result = remediate_finding(finding, dry_run)?;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -153,6 +139,36 @@ fn remediate(findings: &[AuditFinding], finding_id: &str, dry_run: bool, json: b
         );
     }
     Ok(())
+}
+
+/// Apply one exact-value audit remediation without printing.
+pub fn remediate_finding(
+    finding: &AuditFinding,
+    dry_run: bool,
+) -> Result<crate::commands::optimize::common::TweakResult> {
+    let action = finding.remediation.clone().ok_or_else(|| {
+        anyhow!(
+            "Finding '{}' is review-only and has no safe automatic remediation",
+            finding.id
+        )
+    })?;
+    let tweak = Tweak {
+        id: format!("audit_{}", finding.id),
+        name: format!("Remediate {}", finding.name),
+        description: finding.evidence.clone(),
+        category: TweakCategory::Hardware,
+        risk: TweakRisk::Moderate,
+        requires_admin: action.requires_admin(),
+        requires_restart: false,
+        apply_actions: vec![action],
+        revert_actions: Vec::new(),
+        tags: vec!["audit".to_string()],
+    };
+    let result = TweakExecutor::new(dry_run).apply_as(&tweak, OperationKind::AuditRemediation)?;
+    if result.success && !dry_run {
+        record_tweak_applied(&tweak.id, &result);
+    }
+    Ok(result)
 }
 
 #[cfg(windows)]

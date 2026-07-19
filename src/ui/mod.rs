@@ -1,3 +1,4 @@
+mod dashboard;
 pub mod theme;
 
 use anyhow::Result;
@@ -34,6 +35,13 @@ pub fn print_logo() {
 
 /// Run the interactive TUI
 pub fn run_tui() -> Result<()> {
+    dashboard::run()
+}
+
+/// Previous dialog-based interface retained while the full-screen dashboard
+/// absorbs the remaining specialist workflows.
+#[allow(dead_code)]
+fn run_legacy_tui() -> Result<()> {
     let term = Term::stdout();
 
     loop {

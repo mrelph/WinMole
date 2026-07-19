@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 /// Represents a cleanup target (folder or file)
+#[derive(Clone)]
 pub struct CleanupTarget {
     pub name: String,
     pub path: PathBuf,
