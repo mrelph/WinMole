@@ -1,7 +1,11 @@
 //! Development installation into the standard per-user WinMole location.
 
-use anyhow::{bail, Context, Result};
-use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use anyhow::Context;
+use anyhow::{bail, Result};
+use std::path::Path;
+#[cfg(windows)]
+use std::path::PathBuf;
 
 pub fn run(install_dir: Option<&Path>, add_to_path: bool) -> Result<()> {
     #[cfg(not(windows))]
@@ -137,6 +141,7 @@ fn add_directory_to_user_path(directory: &Path) -> Result<bool> {
     Ok(true)
 }
 
+#[cfg(windows)]
 fn same_path(left: &Path, right: &Path) -> bool {
     match (left.canonicalize(), right.canonicalize()) {
         (Ok(left), Ok(right)) => left == right,

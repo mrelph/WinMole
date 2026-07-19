@@ -1048,11 +1048,6 @@ impl TweakExecutor {
         Ok(false)
     }
 
-    #[cfg(not(windows))]
-    fn query_scheduled_task_enabled(&self, _path: &str) -> Result<bool> {
-        Ok(false)
-    }
-
     // =========================================================================
     // Power plan operations
     // =========================================================================
@@ -1100,11 +1095,6 @@ impl TweakExecutor {
         _action: &common::PowerPlanAction,
     ) -> Result<Option<bool>> {
         Ok(None)
-    }
-
-    #[cfg(not(windows))]
-    fn active_power_plan_guid(&self) -> Result<String> {
-        Err(anyhow!("Power plan operations only available on Windows"))
     }
 
     fn check_known_command(&self, command: &str, args: &[String]) -> Result<Option<bool>> {
@@ -1314,15 +1304,6 @@ impl TweakExecutor {
         _provisioned: bool,
     ) -> Result<Option<bool>> {
         Ok(None)
-    }
-
-    #[cfg(not(windows))]
-    fn query_appx_packages(
-        &self,
-        _package_pattern: &str,
-        _provisioned: bool,
-    ) -> Result<Vec<String>> {
-        Ok(Vec::new())
     }
 
     #[cfg(windows)]

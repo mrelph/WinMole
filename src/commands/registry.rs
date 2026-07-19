@@ -2,11 +2,12 @@
 
 use anyhow::{anyhow, bail, Result};
 use serde::Serialize;
+#[cfg(windows)]
 use sha2::{Digest, Sha256};
 
-use crate::commands::optimize::common::{
-    RegistryHive, Tweak, TweakAction, TweakCategory, TweakRisk,
-};
+#[cfg(windows)]
+use crate::commands::optimize::common::RegistryHive;
+use crate::commands::optimize::common::{Tweak, TweakAction, TweakCategory, TweakRisk};
 use crate::commands::optimize::{record_tweak_applied, TweakExecutor};
 use crate::operations::OperationKind;
 use crate::ui::theme;
@@ -14,6 +15,7 @@ use crate::ui::theme;
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum AuditSeverity {
+    #[cfg(windows)]
     Warning,
 }
 
