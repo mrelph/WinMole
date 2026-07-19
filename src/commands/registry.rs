@@ -1,279 +1,354 @@
-use anyhow::Result;
+//! Structured Windows configuration audit with narrowly scoped remediation.
+
+use anyhow::{anyhow, bail, Result};
+use serde::Serialize;
+#[cfg(windows)]
+use sha2::{Digest, Sha256};
 
 #[cfg(windows)]
-use console::style;
-
-#[cfg(windows)]
-use crate::commands::{print_success, print_warning};
+use crate::commands::optimize::common::RegistryHive;
+use crate::commands::optimize::common::{Tweak, TweakAction, TweakCategory, TweakRisk};
+use crate::commands::optimize::{record_tweak_applied, TweakExecutor};
+use crate::operations::OperationKind;
 use crate::ui::theme;
 
-pub fn run(mode: &str, categories: &[String], backup_path: Option<&str>) -> Result<()> {
-    theme::print_section_header("Registry Cleaner");
-
-    #[cfg(not(windows))]
-    {
-        let _ = (mode, categories, backup_path);
-        return Ok(());
-    }
-
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AuditSeverity {
     #[cfg(windows)]
-    {
-        run_windows(mode, categories, backup_path)
-    }
+    Warning,
 }
 
-#[cfg(windows)]
-fn run_windows(mode: &str, categories: &[String], backup_path: Option<&str>) -> Result<()> {
-    use std::fs::File;
-    use std::io::Write;
+#[derive(Debug, Clone, Serialize)]
+struct AuditFinding {
+    id: String,
+    category: String,
+    severity: AuditSeverity,
+    name: String,
+    location: String,
+    evidence: String,
+    remediable: bool,
+    #[serde(skip)]
+    remediation: Option<TweakAction>,
+}
 
-    println!("  Mode: {}", style(mode).cyan());
-    println!("  Categories: {}", style(categories.join(", ")).cyan());
-    println!();
-
-    let mut all_issues: Vec<RegistryIssue> = Vec::new();
-
-    // Scan categories
-    for category in categories {
-        theme::print_info(&format!("Scanning: {}...", category));
-
-        let issues = match category.as_str() {
-            "invalid_paths" | "invalidpaths" => scan_invalid_paths()?,
-            "missing_dlls" | "missingdlls" => scan_missing_dlls()?,
-            "orphaned_software" | "orphanedsoftware" => scan_orphaned_software()?,
-            _ => {
-                print_warning(&format!("Unknown category: {}", category));
-                Vec::new()
-            }
-        };
-
-        all_issues.extend(issues);
+pub fn run(
+    mode: &str,
+    categories: &[String],
+    finding_id: Option<&str>,
+    dry_run: bool,
+    json: bool,
+) -> Result<()> {
+    if !matches!(mode, "scan" | "audit" | "remediate") {
+        bail!("Registry mode must be one of: audit, scan, remediate");
     }
 
-    println!();
+    #[cfg(not(windows))]
+    let findings: Vec<AuditFinding> = {
+        let _ = categories;
+        Vec::new()
+    };
+    #[cfg(windows)]
+    let findings = scan_windows(categories)?;
 
-    // Display results
-    if all_issues.is_empty() {
-        print_success("No registry issues found!");
+    if mode == "remediate" {
+        let finding_id =
+            finding_id.ok_or_else(|| anyhow!("--finding is required for remediation"))?;
+        return remediate(&findings, finding_id, dry_run, json);
+    }
+
+    print_findings(&findings, json)
+}
+
+fn print_findings(findings: &[AuditFinding], json: bool) -> Result<()> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "audit": "windows_configuration",
+                "findings": findings,
+                "summary": {
+                    "total": findings.len(),
+                    "remediable": findings.iter().filter(|finding| finding.remediable).count(),
+                }
+            }))?
+        );
         return Ok(());
     }
 
-    // Summary box
-    println!("  {}", style("╔══════════════════════════════════════════════════╗").cyan());
-    println!("  {}  Issues Found: {:<37} {}",
-        style("║").cyan(),
-        all_issues.len(),
-        style("║").cyan()
-    );
-    println!("  {}", style("╚══════════════════════════════════════════════════╝").cyan());
-    println!();
-
-    // Group by category
-    let mut by_category: std::collections::HashMap<String, Vec<&RegistryIssue>> = std::collections::HashMap::new();
-    for issue in &all_issues {
-        by_category.entry(issue.category.clone()).or_default().push(issue);
+    theme::print_section_header("Windows Configuration Audit");
+    if findings.is_empty() {
+        theme::print_success("No configuration findings were detected.");
+        return Ok(());
     }
 
-    for (category, issues) in &by_category {
-        println!("  {} {} ({} issues)",
-            style("⚠").yellow(),
-            style(category).cyan().bold(),
-            issues.len()
+    for finding in findings {
+        let remediation = if finding.remediable {
+            "remediation available"
+        } else {
+            "review only"
+        };
+        println!(
+            "  [{}] {} ({}, {})",
+            finding.id, finding.name, finding.category, remediation
         );
-
-        for issue in issues.iter().take(5) {
-            println!("    {} {} - {}",
-                style("●").dim(),
-                truncate(&issue.name, 30),
-                style(&issue.reason).dim()
-            );
-        }
-
-        if issues.len() > 5 {
-            println!("    {} ... and {} more", style("●").dim(), issues.len() - 5);
-        }
-        println!();
+        println!("    Evidence: {}", finding.evidence);
+        println!("    Location: {}", finding.location);
     }
-
-    // Clean if requested
-    if mode == "clean" {
-        // Create backup
-        let backup_file = backup_path.map(|p| p.to_string()).unwrap_or_else(|| {
-            let desktop = dirs::desktop_dir().unwrap_or_else(|| std::env::current_dir().unwrap());
-            desktop.join(format!("winmole-registry-backup-{}.reg",
-                chrono::Local::now().format("%Y%m%d-%H%M%S")
-            )).to_string_lossy().to_string()
-        });
-
-        theme::print_info(&format!("Creating backup: {}", backup_file));
-
-        let mut backup = File::create(&backup_file)?;
-        writeln!(backup, "Windows Registry Editor Version 5.00")?;
-        writeln!(backup)?;
-        writeln!(backup, "; WinMole Registry Backup")?;
-        writeln!(backup, "; Date: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"))?;
-        writeln!(backup, "; Issues: {}", all_issues.len())?;
-        writeln!(backup)?;
-
-        for issue in &all_issues {
-            writeln!(backup, "; {}: {}", issue.category, issue.name)?;
-            writeln!(backup, "; Path: {}", issue.path)?;
-            writeln!(backup)?;
-        }
-
-        print_success("Backup created");
-        println!();
-
-        // Note: Actual registry cleaning would require elevated privileges
-        // and careful implementation. For safety, we just report findings.
-        print_warning("Registry cleaning requires manual review for safety");
-        println!("  The backup file contains details of all issues found.");
-        println!("  Review and clean manually using regedit if needed.");
-    }
-
     println!();
+    println!(
+        "  {} finding(s), {} with exact-value remediation",
+        findings.len(),
+        findings.iter().filter(|finding| finding.remediable).count()
+    );
+    Ok(())
+}
 
+fn remediate(findings: &[AuditFinding], finding_id: &str, dry_run: bool, json: bool) -> Result<()> {
+    let finding = findings
+        .iter()
+        .find(|finding| finding.id == finding_id)
+        .ok_or_else(|| anyhow!("Audit finding '{}' was not found", finding_id))?;
+    let action = finding.remediation.clone().ok_or_else(|| {
+        anyhow!(
+            "Finding '{}' is review-only and has no safe automatic remediation",
+            finding_id
+        )
+    })?;
+    let tweak = Tweak {
+        id: format!("audit_{finding_id}"),
+        name: format!("Remediate {}", finding.name),
+        description: finding.evidence.clone(),
+        category: TweakCategory::Hardware,
+        risk: TweakRisk::Moderate,
+        requires_admin: action.requires_admin(),
+        requires_restart: false,
+        apply_actions: vec![action],
+        revert_actions: Vec::new(),
+        tags: vec!["audit".to_string()],
+    };
+    let result = TweakExecutor::new(dry_run).apply_as(&tweak, OperationKind::AuditRemediation)?;
+    if result.success && !dry_run {
+        record_tweak_applied(&tweak.id, &result);
+    }
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+    } else if result.success {
+        let operation = result.operation_id.as_deref().unwrap_or("unavailable");
+        println!(
+            "  {} {} (operation {})",
+            if dry_run {
+                "Would remediate"
+            } else {
+                "Remediated"
+            },
+            finding.name,
+            operation
+        );
+    } else {
+        bail!(
+            "Remediation failed: {}",
+            result.error.as_deref().unwrap_or("unknown error")
+        );
+    }
     Ok(())
 }
 
 #[cfg(windows)]
-struct RegistryIssue {
-    category: String,
-    name: String,
-    path: String,
-    reason: String,
-}
-
-#[cfg(windows)]
-fn scan_invalid_paths() -> Result<Vec<RegistryIssue>> {
-    use winreg::enums::*;
-    use winreg::RegKey;
-
-    let mut issues = Vec::new();
-
-    // Check App Paths
-    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    if let Ok(app_paths) = hklm.open_subkey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths") {
-        for key_name in app_paths.enum_keys().filter_map(|k| k.ok()) {
-            if let Ok(subkey) = app_paths.open_subkey(&key_name) {
-                if let Ok(default_value) = subkey.get_value::<String, _>("") {
-                    let path = expand_env_vars(&default_value);
-                    if !std::path::Path::new(&path).exists() && !path.is_empty() {
-                        issues.push(RegistryIssue {
-                            category: "Invalid Paths".to_string(),
-                            name: key_name.clone(),
-                            path: format!("HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{}", key_name),
-                            reason: format!("File not found: {}", truncate(&path, 40)),
-                        });
-                    }
-                }
-            }
+fn scan_windows(categories: &[String]) -> Result<Vec<AuditFinding>> {
+    let mut findings = Vec::new();
+    for category in categories {
+        match category.as_str() {
+            "invalid_paths" | "invalidpaths" => findings.extend(scan_invalid_paths()?),
+            "missing_dlls" | "missingdlls" => findings.extend(scan_missing_dlls()?),
+            "orphaned_software" | "orphanedsoftware" => findings.extend(scan_orphaned_software()?),
+            _ => bail!("Unknown audit category: {}", category),
         }
     }
-
-    Ok(issues)
+    Ok(findings)
 }
 
 #[cfg(windows)]
-fn scan_missing_dlls() -> Result<Vec<RegistryIssue>> {
-    use winreg::enums::*;
+fn scan_invalid_paths() -> Result<Vec<AuditFinding>> {
+    use winreg::enums::HKEY_LOCAL_MACHINE;
     use winreg::RegKey;
 
-    let mut issues = Vec::new();
-
-    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    if let Ok(shared_dlls) = hklm.open_subkey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\SharedDLLs") {
-        for (name, _) in shared_dlls.enum_values().filter_map(|v| v.ok()).take(500) {
-            let path = expand_env_vars(&name);
-            if !std::path::Path::new(&path).exists() {
-                issues.push(RegistryIssue {
-                    category: "Missing DLLs".to_string(),
-                    name: std::path::Path::new(&name).file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string(),
-                    path: "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\SharedDLLs".to_string(),
-                    reason: "DLL not found".to_string(),
-                });
-            }
+    let base = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths";
+    let app_paths = match RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey(base) {
+        Ok(key) => key,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let mut findings = Vec::new();
+    for key_name in app_paths.enum_keys().filter_map(Result::ok) {
+        let Ok(subkey) = app_paths.open_subkey(&key_name) else {
+            continue;
+        };
+        let Ok(raw_path) = subkey.get_value::<String, _>("") else {
+            continue;
+        };
+        let expanded = expand_env_vars(&raw_path);
+        if expanded.is_empty() || std::path::Path::new(&expanded).exists() {
+            continue;
         }
+        let path = format!("{base}\\{key_name}");
+        findings.push(finding(
+            "invalid_path",
+            "Invalid application path",
+            &key_name,
+            RegistryHive::Hklm,
+            &path,
+            "",
+            format!("Referenced executable does not exist: {expanded}"),
+            true,
+        ));
     }
-
-    Ok(issues)
+    Ok(findings)
 }
 
 #[cfg(windows)]
-fn scan_orphaned_software() -> Result<Vec<RegistryIssue>> {
-    use winreg::enums::*;
+fn scan_missing_dlls() -> Result<Vec<AuditFinding>> {
+    use winreg::enums::HKEY_LOCAL_MACHINE;
     use winreg::RegKey;
 
-    let mut issues = Vec::new();
+    let path = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\SharedDLLs";
+    let key = match RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey(path) {
+        Ok(key) => key,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let mut findings = Vec::new();
+    for (name, _) in key.enum_values().filter_map(Result::ok).take(500) {
+        let expanded = expand_env_vars(&name);
+        if std::path::Path::new(&expanded).exists() {
+            continue;
+        }
+        let display = std::path::Path::new(&name)
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        findings.push(finding(
+            "missing_dll",
+            "Missing shared DLL",
+            &display,
+            RegistryHive::Hklm,
+            path,
+            &name,
+            format!("Referenced DLL does not exist: {expanded}"),
+            true,
+        ));
+    }
+    Ok(findings)
+}
 
-    let uninstall_paths = [
-        (HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-        (HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-        (HKEY_CURRENT_USER, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+#[cfg(windows)]
+fn scan_orphaned_software() -> Result<Vec<AuditFinding>> {
+    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+    use winreg::RegKey;
+
+    let locations = [
+        (
+            HKEY_LOCAL_MACHINE,
+            RegistryHive::Hklm,
+            "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ),
+        (
+            HKEY_LOCAL_MACHINE,
+            RegistryHive::Hklm,
+            "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            RegistryHive::Hkcu,
+            "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ),
     ];
-
-    for (hkey, path) in &uninstall_paths {
-        let root = RegKey::predef(*hkey);
-        if let Ok(uninstall) = root.open_subkey(path) {
-            for key_name in uninstall.enum_keys().filter_map(|k| k.ok()).take(200) {
-                if let Ok(subkey) = uninstall.open_subkey(&key_name) {
-                    if let Ok(install_location) = subkey.get_value::<String, _>("InstallLocation") {
-                        let location = expand_env_vars(&install_location);
-                        if !location.is_empty() && !std::path::Path::new(&location).exists() {
-                            let display_name = subkey.get_value::<String, _>("DisplayName")
-                                .unwrap_or_else(|_| key_name.clone());
-
-                            issues.push(RegistryIssue {
-                                category: "Orphaned Software".to_string(),
-                                name: display_name,
-                                path: format!("{}\\{}", path, key_name),
-                                reason: "Install location not found".to_string(),
-                            });
-                        }
-                    }
-                }
+    let mut findings = Vec::new();
+    for (root, hive, path) in locations {
+        let Ok(uninstall) = RegKey::predef(root).open_subkey(path) else {
+            continue;
+        };
+        for key_name in uninstall.enum_keys().filter_map(Result::ok).take(200) {
+            let Ok(subkey) = uninstall.open_subkey(&key_name) else {
+                continue;
+            };
+            let Ok(raw_location) = subkey.get_value::<String, _>("InstallLocation") else {
+                continue;
+            };
+            let expanded = expand_env_vars(&raw_location);
+            if expanded.is_empty() || std::path::Path::new(&expanded).exists() {
+                continue;
             }
+            let name = subkey
+                .get_value::<String, _>("DisplayName")
+                .unwrap_or_else(|_| key_name.clone());
+            let key_path = format!("{path}\\{key_name}");
+            findings.push(finding(
+                "orphaned_software",
+                "Orphaned software registration",
+                &name,
+                hive.clone(),
+                &key_path,
+                "InstallLocation",
+                format!("Recorded install location does not exist: {expanded}"),
+                false,
+            ));
         }
     }
-
-    Ok(issues)
+    Ok(findings)
 }
 
 #[cfg(windows)]
-fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() > max_len {
-        let truncated: String = s.chars().take(max_len.saturating_sub(3)).collect();
-        format!("{}...", truncated)
-    } else {
-        s.to_string()
+#[allow(clippy::too_many_arguments)]
+fn finding(
+    category: &str,
+    label: &str,
+    name: &str,
+    hive: RegistryHive,
+    path: &str,
+    value_name: &str,
+    evidence: String,
+    remediable: bool,
+) -> AuditFinding {
+    let location = format!("{hive}\\{path}\\{value_name}");
+    let digest = Sha256::digest(location.as_bytes());
+    let short_hash = digest[..6]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let id = format!("{category}-{short_hash}");
+    AuditFinding {
+        id,
+        category: label.to_string(),
+        severity: AuditSeverity::Warning,
+        name: name.to_string(),
+        location,
+        evidence,
+        remediable,
+        remediation: remediable.then(|| TweakAction::RegistryDelete {
+            hive,
+            path: path.to_string(),
+            name: value_name.to_string(),
+        }),
     }
 }
 
 #[cfg(windows)]
-fn expand_env_vars(s: &str) -> String {
-    let mut result = s.to_string();
-
-    if let Ok(system_root) = std::env::var("SystemRoot") {
-        result = result.replace("%SystemRoot%", &system_root);
-        result = result.replace("%systemroot%", &system_root);
+fn expand_env_vars(value: &str) -> String {
+    let mut expanded = value.to_string();
+    for variable in [
+        "SystemRoot",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
+        "USERPROFILE",
+    ] {
+        if let Ok(replacement) = std::env::var(variable) {
+            expanded = expanded.replace(&format!("%{variable}%"), &replacement);
+            expanded = expanded.replace(
+                &format!("%{}%", variable.to_ascii_lowercase()),
+                &replacement,
+            );
+        }
     }
-
-    if let Ok(program_files) = std::env::var("ProgramFiles") {
-        result = result.replace("%ProgramFiles%", &program_files);
-        result = result.replace("%programfiles%", &program_files);
-    }
-
-    if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
-        result = result.replace("%ProgramFiles(x86)%", &program_files_x86);
-    }
-
-    if let Ok(user_profile) = std::env::var("USERPROFILE") {
-        result = result.replace("%USERPROFILE%", &user_profile);
-        result = result.replace("%userprofile%", &user_profile);
-    }
-
-    result
+    expanded.trim_matches('"').to_string()
 }

@@ -235,7 +235,7 @@ pub enum PowerPlanAction {
 // ============================================================================
 
 /// A registry value that can be set
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RegistryValue {
     /// DWORD value
@@ -244,6 +244,8 @@ pub enum RegistryValue {
     Qword(u64),
     /// String value
     String(String),
+    /// Multi-string value
+    MultiString(Vec<String>),
     /// Binary value (hex encoded)
     Binary(Vec<u8>),
 }
@@ -254,6 +256,7 @@ impl fmt::Display for RegistryValue {
             RegistryValue::Dword(v) => write!(f, "0x{:08X} ({})", v, v),
             RegistryValue::Qword(v) => write!(f, "0x{:016X} ({})", v, v),
             RegistryValue::String(s) => write!(f, "\"{}\"", s),
+            RegistryValue::MultiString(values) => write!(f, "{:?}", values),
             RegistryValue::Binary(b) => {
                 write!(f, "[")?;
                 for (i, byte) in b.iter().enumerate() {
@@ -303,10 +306,7 @@ pub enum TweakAction {
     },
 
     /// Enable or disable a scheduled task
-    ScheduledTaskSet {
-        path: String,
-        enabled: bool,
-    },
+    ScheduledTaskSet { path: String, enabled: bool },
 
     /// Modify power plan settings
     PowerPlan {
@@ -348,30 +348,43 @@ impl TweakAction {
     /// Get a human-readable description of this action
     pub fn description(&self) -> String {
         match self {
-            TweakAction::RegistrySet { hive, path, name, value, .. } => {
+            TweakAction::RegistrySet {
+                hive,
+                path,
+                name,
+                value,
+                ..
+            } => {
                 format!("Set {}\\{}\\{} = {}", hive, path, name, value)
             }
             TweakAction::RegistryDelete { hive, path, name } => {
                 format!("Delete {}\\{}\\{}", hive, path, name)
             }
-            TweakAction::ServiceSet { name, startup_type, .. } => {
+            TweakAction::ServiceSet {
+                name, startup_type, ..
+            } => {
                 format!("Set service '{}' to {}", name, startup_type)
             }
             TweakAction::ScheduledTaskSet { path, enabled } => {
-                format!("{} scheduled task '{}'", if *enabled { "Enable" } else { "Disable" }, path)
+                format!(
+                    "{} scheduled task '{}'",
+                    if *enabled { "Enable" } else { "Disable" },
+                    path
+                )
             }
-            TweakAction::PowerPlan { guid, action } => {
-                match action {
-                    PowerPlanAction::SetActive => format!("Set power plan {} as active", guid),
-                    PowerPlanAction::SetValue { setting, .. } => {
-                        format!("Set power plan {} setting '{}'", guid, setting)
-                    }
+            TweakAction::PowerPlan { guid, action } => match action {
+                PowerPlanAction::SetActive => format!("Set power plan {} as active", guid),
+                PowerPlanAction::SetValue { setting, .. } => {
+                    format!("Set power plan {} setting '{}'", guid, setting)
                 }
-            }
+            },
             TweakAction::Command { command, args, .. } => {
                 format!("Run: {} {}", command, args.join(" "))
             }
-            TweakAction::AppxRemove { package_pattern, provisioned } => {
+            TweakAction::AppxRemove {
+                package_pattern,
+                provisioned,
+            } => {
                 if *provisioned {
                     format!("Remove provisioned AppX: {}", package_pattern)
                 } else {
@@ -428,6 +441,78 @@ impl Tweak {
     pub fn needs_admin(&self) -> bool {
         self.requires_admin || self.apply_actions.iter().any(|a| a.requires_admin())
     }
+
+    pub fn effect_requirements(&self) -> Vec<crate::operations::EffectRequirement> {
+        use crate::operations::EffectRequirement;
+        use std::collections::BTreeSet;
+
+        let mut effects = BTreeSet::new();
+        if self.requires_restart {
+            effects.insert(EffectRequirement::Reboot);
+        }
+
+        for action in &self.apply_actions {
+            match action {
+                TweakAction::ServiceSet { name, .. } => {
+                    effects.insert(EffectRequirement::ServiceRestart {
+                        service: name.clone(),
+                    });
+                }
+                TweakAction::RegistrySet {
+                    hive: RegistryHive::Hkcu,
+                    path,
+                    ..
+                }
+                | TweakAction::RegistryDelete {
+                    hive: RegistryHive::Hkcu,
+                    path,
+                    ..
+                } if path.starts_with("Control Panel\\")
+                    || path
+                        .starts_with("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer") =>
+                {
+                    effects.insert(EffectRequirement::ExplorerRestart);
+                }
+                _ => {}
+            }
+        }
+
+        if self.tags.iter().any(|tag| tag == "effect:sign_out") {
+            effects.insert(EffectRequirement::SignOut);
+        }
+        if self.tags.iter().any(|tag| tag == "effect:explorer_restart") {
+            effects.insert(EffectRequirement::ExplorerRestart);
+        }
+        if effects.is_empty() {
+            effects.insert(EffectRequirement::Immediate);
+        }
+        effects.into_iter().collect()
+    }
+
+    pub fn dependencies(&self) -> impl Iterator<Item = &str> {
+        self.tags
+            .iter()
+            .filter_map(|tag| tag.strip_prefix("depends:"))
+    }
+
+    pub fn conflicts(&self) -> impl Iterator<Item = &str> {
+        self.tags
+            .iter()
+            .filter_map(|tag| tag.strip_prefix("conflicts:"))
+    }
+
+    pub fn minimum_windows_build(&self) -> Option<u32> {
+        self.tags
+            .iter()
+            .find_map(|tag| tag.strip_prefix("windows_build:"))
+            .and_then(|build| build.parse().ok())
+    }
+
+    pub fn supported_editions(&self) -> impl Iterator<Item = &str> {
+        self.tags
+            .iter()
+            .filter_map(|tag| tag.strip_prefix("edition:"))
+    }
 }
 
 // ============================================================================
@@ -448,6 +533,20 @@ pub struct TweakResult {
 
     /// Error message if failed
     pub error: Option<String>,
+
+    /// Whether every action could be checked and matched the requested state.
+    /// `None` means the operation cannot be verified reliably or was a dry run.
+    #[serde(default)]
+    pub verified: Option<bool>,
+
+    #[serde(default)]
+    pub operation_id: Option<String>,
+
+    #[serde(default)]
+    pub rollback_performed: bool,
+
+    #[serde(default)]
+    pub effects: Vec<crate::operations::EffectRequirement>,
 }
 
 /// Result of a single action
@@ -503,6 +602,7 @@ pub struct AppliedTweak {
     /// When it was applied
     pub applied_at: chrono::DateTime<chrono::Utc>,
 
-    /// Backup data for reverting
-    pub backup_data: Option<String>,
+    /// Serialized action log captured when the tweak was applied.
+    #[serde(default, alias = "backup_data")]
+    pub action_log: Option<String>,
 }

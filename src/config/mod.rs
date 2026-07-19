@@ -15,7 +15,7 @@ pub use settings::UserSettings;
 use crate::commands::optimize::common::AppliedTweak;
 
 /// Main WinMole configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WinMoleConfig {
     /// User settings
     pub settings: UserSettings,
@@ -25,16 +25,6 @@ pub struct WinMoleConfig {
 
     /// Backup history
     pub backups: Vec<BackupInfo>,
-}
-
-impl Default for WinMoleConfig {
-    fn default() -> Self {
-        Self {
-            settings: UserSettings::default(),
-            applied_tweaks: Vec::new(),
-            backups: Vec::new(),
-        }
-    }
 }
 
 impl WinMoleConfig {
@@ -73,14 +63,14 @@ impl WinMoleConfig {
     }
 
     /// Record an applied tweak
-    pub fn record_applied_tweak(&mut self, tweak_id: &str, backup_data: Option<String>) {
+    pub fn record_applied_tweak(&mut self, tweak_id: &str, action_log: Option<String>) {
         // Remove existing record if any
         self.applied_tweaks.retain(|t| t.tweak_id != tweak_id);
 
         self.applied_tweaks.push(AppliedTweak {
             tweak_id: tweak_id.to_string(),
             applied_at: chrono::Utc::now(),
-            backup_data,
+            action_log,
         });
     }
 
@@ -110,10 +100,28 @@ mod tests {
     fn test_applied_tweak_tracking() {
         let mut config = WinMoleConfig::default();
 
-        config.record_applied_tweak("test_tweak", Some("backup_data".to_string()));
-        assert!(config.applied_tweaks.iter().any(|t| t.tweak_id == "test_tweak"));
+        config.record_applied_tweak("test_tweak", Some("action_log".to_string()));
+        assert!(config
+            .applied_tweaks
+            .iter()
+            .any(|t| t.tweak_id == "test_tweak"));
 
         config.remove_applied_tweak("test_tweak");
-        assert!(!config.applied_tweaks.iter().any(|t| t.tweak_id == "test_tweak"));
+        assert!(!config
+            .applied_tweaks
+            .iter()
+            .any(|t| t.tweak_id == "test_tweak"));
+    }
+
+    #[test]
+    fn test_legacy_backup_data_migrates_to_action_log() {
+        let applied: AppliedTweak = serde_json::from_value(serde_json::json!({
+            "tweak_id": "legacy_tweak",
+            "applied_at": "2026-07-18T00:00:00Z",
+            "backup_data": "[{\"success\":true}]"
+        }))
+        .expect("legacy applied tweak should deserialize");
+
+        assert_eq!(applied.action_log.as_deref(), Some("[{\"success\":true}]"));
     }
 }

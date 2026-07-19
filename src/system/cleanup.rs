@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Represents a cleanup target (folder or file)
 pub struct CleanupTarget {
@@ -255,14 +255,8 @@ pub fn get_browser_caches() -> Result<Vec<CleanupTarget>> {
     Ok(targets)
 }
 
-fn calculate_size(path: &PathBuf) -> u64 {
-    walkdir::WalkDir::new(path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-        .filter_map(|e| e.metadata().ok())
-        .map(|m| m.len())
-        .sum()
+fn calculate_size(path: &Path) -> u64 {
+    crate::scanner::scan_files(path, None, |_, _| {}).bytes
 }
 
 fn calculate_pattern_size(path: &PathBuf, pattern: &str) -> u64 {
@@ -285,9 +279,7 @@ pub fn glob_match(pattern: &str, name: &str) -> bool {
     fn matches(p: &[char], n: &[char]) -> bool {
         match (p.split_first(), n.split_first()) {
             (None, None) => true,
-            (Some(('*', rest)), _) => {
-                matches(rest, n) || (!n.is_empty() && matches(p, &n[1..]))
-            }
+            (Some(('*', rest)), _) => matches(rest, n) || (!n.is_empty() && matches(p, &n[1..])),
             (Some(('?', p_rest)), Some((_, n_rest))) => matches(p_rest, n_rest),
             (Some((pc, p_rest)), Some((nc, n_rest))) if pc == nc => matches(p_rest, n_rest),
             _ => false,
@@ -296,6 +288,10 @@ pub fn glob_match(pattern: &str, name: &str) -> bool {
     let p: Vec<char> = pattern.to_lowercase().chars().collect();
     let n: Vec<char> = name.to_lowercase().chars().collect();
     matches(&p, &n)
+}
+
+fn count_files(path: &Path) -> u64 {
+    crate::scanner::scan_files(path, None, |_, _| {}).files
 }
 
 #[cfg(test)]
@@ -329,12 +325,4 @@ mod tests {
         assert!(glob_match("desktop.ini", "Desktop.ini"));
         assert!(!glob_match("desktop.ini", "desktop.ini.bak"));
     }
-}
-
-fn count_files(path: &PathBuf) -> u64 {
-    walkdir::WalkDir::new(path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-        .count() as u64
 }
