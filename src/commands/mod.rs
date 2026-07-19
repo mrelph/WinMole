@@ -2,6 +2,9 @@ pub mod clean;
 pub mod dev;
 pub mod diagnose;
 pub mod disk;
+pub mod doctor;
+pub mod install;
+pub mod operations;
 pub mod optimize;
 pub mod quickfix;
 pub mod registry;
@@ -14,8 +17,8 @@ pub mod winget;
 use anyhow::Result;
 use console::{style, Term};
 
-use crate::system::{get_health_score, get_cleanable_size};
-use crate::ui::theme::{self, icons, boxes, create_threshold_bar};
+use crate::system::{get_cleanable_size, get_health_score};
+use crate::ui::theme::{self, boxes, create_threshold_bar, icons};
 
 /// Run a quick system scan
 pub fn quick_scan() -> Result<()> {
@@ -23,16 +26,25 @@ pub fn quick_scan() -> Result<()> {
     term.clear_screen()?;
 
     // Mini mole logo
-    println!("{}", style(r#"
+    println!(
+        "{}",
+        style(
+            r#"
         /\_/\
        ( o.o )
         > ^ <   WinMole Quick Scan
        /|   |\
-      (_|   |_) "#).cyan());
+      (_|   |_) "#
+        )
+        .cyan()
+    );
     println!();
 
     // Health score with spinner effect
-    print!("  {} Calculating health score... ", style(icons::PROGRESS).cyan());
+    print!(
+        "  {} Calculating health score... ",
+        style(icons::PROGRESS).cyan()
+    );
     let health = get_health_score()?;
     println!("{}", style("done").green());
 
@@ -45,23 +57,27 @@ pub fn quick_scan() -> Result<()> {
     };
 
     println!();
-    println!("  {}{}{}",
+    println!(
+        "  {}{}{}",
         style(boxes::TOP_LEFT).cyan(),
         style(boxes::HORIZONTAL.repeat(44)).cyan(),
         style(boxes::TOP_RIGHT).cyan()
     );
-    println!("  {}  Health Score: {} {}  {}",
+    println!(
+        "  {}  Health Score: {} {}  {}",
         style(boxes::VERTICAL).cyan(),
         health_color,
         health_bar,
         style(boxes::VERTICAL).cyan()
     );
-    println!("  {}  Status: {:<35} {}",
+    println!(
+        "  {}  Status: {:<35} {}",
         style(boxes::VERTICAL).cyan(),
         style(&health.status).white(),
         style(boxes::VERTICAL).cyan()
     );
-    println!("  {}{}{}",
+    println!(
+        "  {}{}{}",
         style(boxes::BOTTOM_LEFT).cyan(),
         style(boxes::HORIZONTAL.repeat(44)).cyan(),
         style(boxes::BOTTOM_RIGHT).cyan()
@@ -69,21 +85,27 @@ pub fn quick_scan() -> Result<()> {
     println!();
 
     // Cleanable space
-    print!("  {} Scanning for cleanable files... ", style(icons::PROGRESS).cyan());
+    print!(
+        "  {} Scanning for cleanable files... ",
+        style(icons::PROGRESS).cyan()
+    );
     let cleanable = get_cleanable_size()?;
     println!("{}", style("done").green());
 
     println!();
     theme::print_section_header("Cleanable Space");
-    println!("  {} Total cleanable:  {}",
+    println!(
+        "  {} Total cleanable:  {}",
         style(icons::CLEANUP).yellow(),
         style(format_size(cleanable.total)).yellow().bold()
     );
-    println!("    {} Temp files:     {}",
+    println!(
+        "    {} Temp files:     {}",
         style(icons::BULLET).dim(),
         style(format_size(cleanable.temp)).dim()
     );
-    println!("    {} Browser cache:  {}",
+    println!(
+        "    {} Browser cache:  {}",
         style(icons::BULLET).dim(),
         style(format_size(cleanable.browser)).dim()
     );

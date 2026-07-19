@@ -23,11 +23,12 @@ Or download the latest binary from [GitHub Releases](https://github.com/mrelph/W
 - **System Status** - Real-time system health monitoring with CPU, RAM, disk usage stats
 - **Developer Cleanup** - Remove build artifacts (node_modules, target, bin, obj) with interactive selection
 - **Package Manager** - Integrated winget wrapper with interactive update/uninstall operations
-- **Registry Cleaner** - Scan for invalid paths, missing DLLs, orphaned software entries
+- **Configuration Audit** - Report evidence for invalid paths, missing DLLs, and orphaned software; remediate only exact recoverable values
 - **Startup Optimizer** - List, enable, and disable startup items with impact analysis
 - **System Diagnostics** - Process analysis, memory analysis, service analysis
 - **Quick Scan** - Fast system health check with recommendations
 - **Interactive TUI** - Beautiful ASCII art logo and intuitive menu navigation with looping submenus
+- **Transactional Tweaks** - Capture typed before/after state, verify outcomes, roll back partial failures, and keep a durable operation journal
 
 ## Installation
 
@@ -51,7 +52,7 @@ Download from the [Releases](https://github.com/mrelph/WinMole/releases) page.
 ## Requirements
 
 - Windows 10/11
-- Administrator rights (for some operations like registry cleaning and system file cleanup)
+- Administrator rights (for system cleanup and performance tweaks that change machine-wide settings)
 - Rust 1.70+ (for building from source)
 
 ## Quick Start
@@ -219,20 +220,18 @@ winmole  # Select "Package Manager"
 
 The Package Manager submenu loops, allowing multiple operations. All operations show progress and require confirmation for destructive actions.
 
-### Registry Cleaner
+### Configuration Audit
 
 ```bash
-# Scan for all issues
-winmole registry --mode scan
+# Audit all supported categories
+winmole registry --mode audit
 
-# Scan specific categories
-winmole registry --mode scan --category invalid_paths,missing_dlls
+# Audit specific categories as JSON
+winmole --json registry --mode audit --category invalid_paths,missing_dlls
 
-# Clean with automatic backup
-winmole registry --mode clean --backup ~/Desktop/backup.reg
-
-# Interactive mode with scan type selection
-winmole  # Select "Registry Cleaner"
+# Preview and then perform one exact-value remediation
+winmole registry --mode remediate --finding <finding-id> --dry-run
+winmole registry --mode remediate --finding <finding-id>
 ```
 
 **Categories:** `invalid_paths`, `missing_dlls`, `orphaned_software`
@@ -243,7 +242,72 @@ winmole  # Select "Registry Cleaner"
 - Scan Missing DLLs Only - Find references to missing DLL files
 - Scan Orphaned Software Only - Detect uninstalled software remnants
 
-The Registry Cleaner submenu loops and always shows scan results before any cleaning operation. Automatic backup is created before cleaning.
+Every finding includes stable identity, severity, location, and evidence. Orphaned software registrations remain review-only. Invalid App Paths and missing SharedDLL values can be remediated individually through the same typed snapshot, verification, journal, and restore path used by performance tweaks.
+
+### Runtime Diagnostics
+
+Use `doctor` when source changes appear to be missing:
+
+```bash
+winmole doctor
+winmole --json doctor
+```
+
+The report shows the exact executable being run, build profile, modification time, configuration path, elevation state, expected install location, and every `winmole` executable resolved from `PATH`. A warning is shown when the running binary differs from the installed or `PATH` copy.
+
+It also reports source revision, dirty working-tree state, build timestamp, and the identity of the installed build. To install the exact build currently running:
+
+```powershell
+cargo build --release
+.\target\release\winmole.exe dev-install
+winmole doctor
+```
+
+### Performance Optimization
+
+```bash
+# List tweaks and inspect their detected state
+winmole optimize --action list
+winmole optimize --action status
+
+# Preview or apply a profile
+winmole optimize --action apply --profile gaming --dry-run
+winmole optimize --action apply --profile gaming
+
+# Revert a profile
+winmole optimize --action revert --profile gaming
+
+# Compare desired profile state with the machine and show drift/preflight issues
+winmole optimize --action compare --profile gaming
+winmole --json optimize --action compare --profile gaming
+```
+
+WinMole verifies registry, service, scheduled-task, AppX-removal, and recognized power-plan actions after execution. Actions without a reliable state query are marked `UNVERIFIED` rather than being reported as definitively applied.
+
+Profiles validate dependencies, conflicts, Windows build, edition, and conflicting registry targets before changing the machine. A partial profile failure restores already-completed tweaks in reverse order.
+
+### Operation History and Recovery
+
+```powershell
+# Inspect recent operations or one full record
+winmole history
+winmole history --id <operation-id>
+winmole --json history
+
+# Preview and restore exact captured before-state
+winmole restore <operation-id> --dry-run
+winmole restore <operation-id>
+winmole restore --last
+
+# Inspect activation requirements; optionally restart supported services/Explorer
+winmole effects --last
+winmole effects --last --apply --yes
+
+# Generate a support report with build, config, and journal data
+winmole report --output winmole-support.json
+```
+
+Operation records live under the per-user local application data directory in `WinMole\operations`. They include build identity, elevation, typed before/after snapshots, action results, rollback results, profile child operations, and activation requirements. Sign-out and reboot remain manual.
 
 ### Startup Optimizer
 
@@ -314,8 +378,8 @@ winmole -i
 
 **Features:**
 - ASCII art WinMole logo on startup
-- Main menu with 10 options including all major features
-- Looping submenus for Disk Analysis, Package Manager, Registry Cleaner, Startup Optimizer, and System Diagnostics
+- Main menu with all major features
+- Looping submenus for Disk Analysis, Package Manager, Registry Scan, Startup Optimizer, Performance, Updates, and System Diagnostics
 - "Back to Main Menu" option in all submenus for easy navigation
 - Preview modes for all destructive operations
 - Confirmation prompts for safety
@@ -333,11 +397,15 @@ winmole -i
 3. System Status - Live monitoring option
 4. Developer Cleanup - Interactive path and type selection
 5. Package Manager - Submenu with 7 package operations
-6. Registry Cleaner - Submenu with 4 scan types
+6. Registry Scan - Submenu with 4 scan types
 7. Startup Optimizer - Submenu with 4 management actions
 8. System Diagnostics - Submenu with 4 diagnostic types
 9. Quick Scan - Fast system health check
-10. Exit - Clean exit with ASCII art goodbye
+10. Quick Fix - Scan and repair common issues
+11. Performance - Profiles, individual tweaks, debloat, and history
+12. Windows Updates - Inspect and manage update settings
+13. Self Update - Check for WinMole releases
+14. Exit - Clean exit with ASCII art goodbye
 
 ## Example Output
 
@@ -418,7 +486,7 @@ Built with modern Rust for performance, reliability, and safety:
 
 - **Dry-run/Preview mode** - Preview all destructive operations before execution
 - **Protected paths** - System-critical paths are never deleted
-- **Registry backup** - Automatic backup before registry cleaning
+- **Restore points** - Optional restore-point creation before supported optimization changes
 - **Confirmation prompts** - All important operations require explicit confirmation
 - **Safe deletion** - Files in use are skipped gracefully with error handling
 - **Interactive selection** - Choose exactly what to clean/update/remove

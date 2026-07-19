@@ -6,10 +6,211 @@
 //! - Balanced: Windows defaults with minimal optimizations
 
 use super::common::{
-    RegistryHive, RegistryValue, RegistryValueType, Tweak, TweakAction,
-    TweakCategory, TweakProfile, TweakRisk,
+    RegistryHive, RegistryValue, RegistryValueType, Tweak, TweakAction, TweakCategory,
+    TweakProfile, TweakRisk,
 };
 use super::TweakRegistry;
+use serde::Serialize;
+use std::collections::{BTreeSet, HashMap, HashSet};
+
+use super::common::TweakState;
+use super::TweakExecutor;
+use crate::operations::EffectRequirement;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SystemCapabilities {
+    pub windows_build: Option<u32>,
+    pub edition: Option<String>,
+}
+
+impl SystemCapabilities {
+    #[cfg(windows)]
+    pub fn detect() -> Self {
+        use winreg::enums::HKEY_LOCAL_MACHINE;
+        use winreg::RegKey;
+
+        let key = RegKey::predef(HKEY_LOCAL_MACHINE)
+            .open_subkey("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion")
+            .ok();
+        Self {
+            windows_build: key
+                .as_ref()
+                .and_then(|key| key.get_value::<String, _>("CurrentBuildNumber").ok())
+                .and_then(|build| build.parse().ok()),
+            edition: key
+                .as_ref()
+                .and_then(|key| key.get_value::<String, _>("EditionID").ok()),
+        }
+    }
+
+    #[cfg(not(windows))]
+    pub fn detect() -> Self {
+        Self {
+            windows_build: None,
+            edition: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProfileIssue {
+    pub tweak_id: Option<String>,
+    pub message: String,
+    pub blocking: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProfileTweakState {
+    pub tweak_id: String,
+    pub name: String,
+    pub state: TweakState,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProfileComparison {
+    pub profile_id: String,
+    pub profile_name: String,
+    pub capabilities: SystemCapabilities,
+    pub issues: Vec<ProfileIssue>,
+    pub tweaks: Vec<ProfileTweakState>,
+    pub effects: Vec<EffectRequirement>,
+}
+
+impl ProfileComparison {
+    pub fn can_apply(&self) -> bool {
+        !self.issues.iter().any(|issue| issue.blocking)
+    }
+
+    pub fn drifted_tweaks(&self) -> impl Iterator<Item = &ProfileTweakState> {
+        self.tweaks
+            .iter()
+            .filter(|tweak| tweak.state != TweakState::Applied)
+    }
+}
+
+pub fn compare_profile(
+    registry: &TweakRegistry,
+    executor: &TweakExecutor,
+    profile: &TweakProfile,
+) -> ProfileComparison {
+    let capabilities = SystemCapabilities::detect();
+    let config = crate::config::WinMoleConfig::load().unwrap_or_default();
+    let applied: HashSet<_> = config
+        .applied_tweaks
+        .iter()
+        .map(|tweak| tweak.tweak_id.as_str())
+        .collect();
+    let profile_ids: HashSet<_> = profile.tweak_ids.iter().map(String::as_str).collect();
+    let mut issues = Vec::new();
+    let mut effects = BTreeSet::new();
+    let mut target_values: HashMap<String, (String, String)> = HashMap::new();
+    let mut states = Vec::new();
+
+    for tweak_id in &profile.tweak_ids {
+        let Some(tweak) = registry.get(tweak_id) else {
+            issues.push(ProfileIssue {
+                tweak_id: Some(tweak_id.clone()),
+                message: "Tweak is not registered".to_string(),
+                blocking: true,
+            });
+            continue;
+        };
+
+        for dependency in tweak.dependencies() {
+            if !profile_ids.contains(dependency) && !applied.contains(dependency) {
+                issues.push(ProfileIssue {
+                    tweak_id: Some(tweak.id.clone()),
+                    message: format!("Requires tweak '{dependency}'"),
+                    blocking: true,
+                });
+            }
+        }
+        for conflict in tweak.conflicts() {
+            if profile_ids.contains(conflict) || applied.contains(conflict) {
+                issues.push(ProfileIssue {
+                    tweak_id: Some(tweak.id.clone()),
+                    message: format!("Conflicts with tweak '{conflict}'"),
+                    blocking: true,
+                });
+            }
+        }
+        if let (Some(required), Some(actual)) =
+            (tweak.minimum_windows_build(), capabilities.windows_build)
+        {
+            if actual < required {
+                issues.push(ProfileIssue {
+                    tweak_id: Some(tweak.id.clone()),
+                    message: format!(
+                        "Requires Windows build {required} or newer; detected {actual}"
+                    ),
+                    blocking: true,
+                });
+            }
+        }
+        let editions: Vec<_> = tweak.supported_editions().collect();
+        if !editions.is_empty() {
+            if let Some(actual) = capabilities.edition.as_deref() {
+                if !editions
+                    .iter()
+                    .any(|edition| edition.eq_ignore_ascii_case(actual))
+                {
+                    issues.push(ProfileIssue {
+                        tweak_id: Some(tweak.id.clone()),
+                        message: format!(
+                            "Supported editions: {}; detected {}",
+                            editions.join(", "),
+                            actual
+                        ),
+                        blocking: true,
+                    });
+                }
+            }
+        }
+
+        for action in &tweak.apply_actions {
+            if let TweakAction::RegistrySet {
+                hive,
+                path,
+                name,
+                value,
+                ..
+            } = action
+            {
+                let target = format!("{}\\{}\\{}", hive, path, name);
+                let value = value.to_string();
+                if let Some((other_tweak, other_value)) = target_values.get(&target) {
+                    if other_value != &value {
+                        issues.push(ProfileIssue {
+                            tweak_id: Some(tweak.id.clone()),
+                            message: format!(
+                                "Sets {target} to {value}, conflicting with {other_tweak} ({other_value})"
+                            ),
+                            blocking: true,
+                        });
+                    }
+                } else {
+                    target_values.insert(target, (tweak.id.clone(), value));
+                }
+            }
+        }
+
+        effects.extend(tweak.effect_requirements());
+        states.push(ProfileTweakState {
+            tweak_id: tweak.id.clone(),
+            name: tweak.name.clone(),
+            state: executor.detect_state(tweak).unwrap_or(TweakState::Unknown),
+        });
+    }
+
+    ProfileComparison {
+        profile_id: profile.id.clone(),
+        profile_name: profile.name.clone(),
+        capabilities,
+        issues,
+        tweaks: states,
+        effects: effects.into_iter().collect(),
+    }
+}
 
 /// Get all available profiles
 pub fn get_profiles() -> Vec<TweakProfile> {
@@ -66,7 +267,8 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
     registry.register(Tweak {
         id: "perf_priority_separation_gaming".to_string(),
         name: "Gaming Priority Separation".to_string(),
-        description: "Prioritize foreground applications for maximum gaming performance (0x26)".to_string(),
+        description: "Prioritize foreground applications for maximum gaming performance (0x26)"
+            .to_string(),
         category: TweakCategory::Performance,
         risk: TweakRisk::Safe,
         requires_admin: true,
@@ -87,7 +289,11 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
             value: RegistryValue::Dword(2), // Windows default
             default_value: None,
         }],
-        tags: vec!["gaming".to_string(), "priority".to_string(), "cpu".to_string()],
+        tags: vec![
+            "gaming".to_string(),
+            "priority".to_string(),
+            "cpu".to_string(),
+        ],
     });
 
     // =========================================================================
@@ -117,7 +323,11 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
             value: RegistryValue::Dword(2),
             default_value: None,
         }],
-        tags: vec!["workstation".to_string(), "priority".to_string(), "cpu".to_string()],
+        tags: vec![
+            "workstation".to_string(),
+            "priority".to_string(),
+            "cpu".to_string(),
+        ],
     });
 
     // =========================================================================
@@ -147,7 +357,11 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
             value: RegistryValue::Dword(2),
             default_value: None,
         }],
-        tags: vec!["balanced".to_string(), "priority".to_string(), "cpu".to_string()],
+        tags: vec![
+            "balanced".to_string(),
+            "priority".to_string(),
+            "cpu".to_string(),
+        ],
     });
 
     // =========================================================================
@@ -156,14 +370,16 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
     registry.register(Tweak {
         id: "perf_system_responsiveness".to_string(),
         name: "System Responsiveness (Gaming)".to_string(),
-        description: "Disable CPU reservation for system tasks, maximize foreground performance".to_string(),
+        description: "Disable CPU reservation for system tasks, maximize foreground performance"
+            .to_string(),
         category: TweakCategory::Performance,
         risk: TweakRisk::Safe,
         requires_admin: true,
         requires_restart: false,
         apply_actions: vec![TweakAction::RegistrySet {
             hive: RegistryHive::Hklm,
-            path: "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile".to_string(),
+            path: "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile"
+                .to_string(),
             name: "SystemResponsiveness".to_string(),
             value_type: RegistryValueType::Dword,
             value: RegistryValue::Dword(0),
@@ -171,13 +387,18 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
         }],
         revert_actions: vec![TweakAction::RegistrySet {
             hive: RegistryHive::Hklm,
-            path: "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile".to_string(),
+            path: "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile"
+                .to_string(),
             name: "SystemResponsiveness".to_string(),
             value_type: RegistryValueType::Dword,
             value: RegistryValue::Dword(20),
             default_value: None,
         }],
-        tags: vec!["gaming".to_string(), "multimedia".to_string(), "cpu".to_string()],
+        tags: vec![
+            "gaming".to_string(),
+            "multimedia".to_string(),
+            "cpu".to_string(),
+        ],
     });
 
     // =========================================================================
@@ -193,7 +414,8 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
         requires_restart: false,
         apply_actions: vec![TweakAction::RegistrySet {
             hive: RegistryHive::Hklm,
-            path: "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile".to_string(),
+            path: "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile"
+                .to_string(),
             name: "SystemResponsiveness".to_string(),
             value_type: RegistryValueType::Dword,
             value: RegistryValue::Dword(10),
@@ -201,13 +423,18 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
         }],
         revert_actions: vec![TweakAction::RegistrySet {
             hive: RegistryHive::Hklm,
-            path: "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile".to_string(),
+            path: "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile"
+                .to_string(),
             name: "SystemResponsiveness".to_string(),
             value_type: RegistryValueType::Dword,
             value: RegistryValue::Dword(20),
             default_value: None,
         }],
-        tags: vec!["workstation".to_string(), "multimedia".to_string(), "cpu".to_string()],
+        tags: vec![
+            "workstation".to_string(),
+            "multimedia".to_string(),
+            "cpu".to_string(),
+        ],
     });
 
     // =========================================================================
@@ -464,7 +691,8 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
         requires_restart: false,
         apply_actions: vec![TweakAction::RegistrySet {
             hive: RegistryHive::Hkcu,
-            path: "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects".to_string(),
+            path: "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects"
+                .to_string(),
             name: "VisualFXSetting".to_string(),
             value_type: RegistryValueType::Dword,
             value: RegistryValue::Dword(2), // 2 = Best performance
@@ -472,7 +700,8 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
         }],
         revert_actions: vec![TweakAction::RegistrySet {
             hive: RegistryHive::Hkcu,
-            path: "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects".to_string(),
+            path: "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects"
+                .to_string(),
             name: "VisualFXSetting".to_string(),
             value_type: RegistryValueType::Dword,
             value: RegistryValue::Dword(0), // 0 = Let Windows decide
@@ -494,7 +723,8 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
         requires_restart: false,
         apply_actions: vec![TweakAction::RegistrySet {
             hive: RegistryHive::Hkcu,
-            path: "Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications".to_string(),
+            path: "Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications"
+                .to_string(),
             name: "GlobalUserDisabled".to_string(),
             value_type: RegistryValueType::Dword,
             value: RegistryValue::Dword(1),
@@ -502,7 +732,8 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
         }],
         revert_actions: vec![TweakAction::RegistrySet {
             hive: RegistryHive::Hkcu,
-            path: "Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications".to_string(),
+            path: "Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications"
+                .to_string(),
             name: "GlobalUserDisabled".to_string(),
             value_type: RegistryValueType::Dword,
             value: RegistryValue::Dword(0),
@@ -510,4 +741,45 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
         }],
         tags: vec!["workstation".to_string(), "background".to_string()],
     });
+}
+
+#[cfg(test)]
+mod comparison_tests {
+    use super::*;
+
+    fn test_tweak(id: &str, tags: &[&str]) -> Tweak {
+        Tweak {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: "test".to_string(),
+            category: TweakCategory::Performance,
+            risk: TweakRisk::Safe,
+            requires_admin: false,
+            requires_restart: false,
+            apply_actions: Vec::new(),
+            revert_actions: Vec::new(),
+            tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn comparison_blocks_declared_profile_conflicts() {
+        let mut registry = TweakRegistry::new();
+        registry.register(test_tweak("test_a", &["conflicts:test_b"]));
+        registry.register(test_tweak("test_b", &[]));
+        let profile = TweakProfile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "test".to_string(),
+            tweak_ids: vec!["test_a".to_string(), "test_b".to_string()],
+            builtin: false,
+        };
+
+        let comparison = compare_profile(&registry, &TweakExecutor::new(true), &profile);
+        assert!(!comparison.can_apply());
+        assert!(comparison
+            .issues
+            .iter()
+            .any(|issue| issue.message.contains("Conflicts with tweak 'test_b'")));
+    }
 }

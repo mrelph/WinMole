@@ -1,5 +1,7 @@
 mod commands;
 mod config;
+mod operations;
+mod scanner;
 mod system;
 mod ui;
 
@@ -118,19 +120,23 @@ enum Commands {
         all: bool,
     },
 
-    /// Scan and clean registry
+    /// Audit Windows configuration evidence and optionally remediate one finding
     Registry {
-        /// Mode: scan or clean
-        #[arg(short, long, default_value = "scan")]
+        /// Mode: audit, scan, remediate
+        #[arg(short, long, default_value = "audit")]
         mode: String,
 
         /// Categories to scan
         #[arg(short, long, value_delimiter = ',')]
         category: Option<Vec<String>>,
 
-        /// Backup path before cleaning
-        #[arg(short, long)]
-        backup: Option<String>,
+        /// Stable audit finding ID to remediate
+        #[arg(long)]
+        finding: Option<String>,
+
+        /// Preview remediation without changing the system
+        #[arg(short = 'n', long)]
+        dry_run: bool,
     },
 
     /// Optimize startup programs
@@ -153,6 +159,70 @@ enum Commands {
         /// Action: processes, memory, services, all
         #[arg(default_value = "all")]
         action: String,
+    },
+
+    /// Show build, executable, configuration, and installation diagnostics
+    Doctor,
+
+    /// Install the currently running build to the per-user WinMole location
+    DevInstall {
+        /// Override the installation directory
+        #[arg(long)]
+        install_dir: Option<String>,
+
+        /// Do not add the installation directory to user PATH
+        #[arg(long)]
+        no_path: bool,
+    },
+
+    /// View the durable operation journal
+    History {
+        /// Show one operation by full ID
+        #[arg(long)]
+        id: Option<String>,
+
+        /// Maximum number of operations to list
+        #[arg(short, long, default_value = "20")]
+        limit: usize,
+    },
+
+    /// Restore exact before-state captured by a previous operation
+    Restore {
+        /// Operation ID to restore
+        id: Option<String>,
+
+        /// Restore the most recent fully recoverable operation
+        #[arg(long)]
+        last: bool,
+
+        /// Preview restoration without changing the system
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+    },
+
+    /// Inspect or perform activation steps required by an operation
+    Effects {
+        /// Operation ID to inspect
+        id: Option<String>,
+
+        /// Use the latest operation with activation requirements
+        #[arg(long)]
+        last: bool,
+
+        /// Restart supported services or Windows Explorer
+        #[arg(long)]
+        apply: bool,
+
+        /// Confirm potentially disruptive restart actions
+        #[arg(short, long)]
+        yes: bool,
+    },
+
+    /// Generate a machine-readable support and operation report
+    Report {
+        /// Write JSON to a file instead of stdout
+        #[arg(short, long)]
+        output: Option<String>,
     },
 
     /// Optimize system performance
@@ -272,69 +342,140 @@ fn main() -> Result<()> {
 
     // Handle subcommands
     let result = match cli.command.unwrap() {
-        Commands::Clean { dry_run, category, force } => {
-            let categories = category.unwrap_or_else(|| vec!["user".to_string(), "browser".to_string(), "cache".to_string()]);
+        Commands::Clean {
+            dry_run,
+            category,
+            force,
+        } => {
+            let categories = category.unwrap_or_else(|| {
+                vec![
+                    "user".to_string(),
+                    "browser".to_string(),
+                    "cache".to_string(),
+                ]
+            });
             commands::clean::run(dry_run, &categories, force, json)
         }
 
-        Commands::Disk { path, mode, depth, top } => {
-            commands::disk::run(&path, &mode, depth, top, json)
-        }
+        Commands::Disk {
+            path,
+            mode,
+            depth,
+            top,
+        } => commands::disk::run(&path, &mode, depth, top, json),
 
-        Commands::Status { live, interval } => {
-            commands::status::run(live, interval, json)
-        }
+        Commands::Status { live, interval } => commands::status::run(live, interval, json),
 
-        Commands::Dev { path, types, older_than, dry_run, force } => {
-            let artifact_types = types.unwrap_or_else(|| vec![
-                "node_modules".to_string(),
-                "target".to_string(),
-                "bin".to_string(),
-                "obj".to_string(),
-            ]);
+        Commands::Dev {
+            path,
+            types,
+            older_than,
+            dry_run,
+            force,
+        } => {
+            let artifact_types = types.unwrap_or_else(|| {
+                vec![
+                    "node_modules".to_string(),
+                    "target".to_string(),
+                    "bin".to_string(),
+                    "obj".to_string(),
+                ]
+            });
             commands::dev::run(&path, &artifact_types, older_than, dry_run, force)
         }
 
-        Commands::Winget { action, package, all } => {
-            commands::winget::run(&action, package.as_deref(), all)
+        Commands::Winget {
+            action,
+            package,
+            all,
+        } => commands::winget::run(&action, package.as_deref(), all),
+
+        Commands::Registry {
+            mode,
+            category,
+            finding,
+            dry_run,
+        } => {
+            let categories = category.unwrap_or_else(|| {
+                vec![
+                    "invalid_paths".to_string(),
+                    "missing_dlls".to_string(),
+                    "orphaned_software".to_string(),
+                ]
+            });
+            commands::registry::run(&mode, &categories, finding.as_deref(), dry_run, json)
         }
 
-        Commands::Registry { mode, category, backup } => {
-            let categories = category.unwrap_or_else(|| vec![
-                "invalid_paths".to_string(),
-                "missing_dlls".to_string(),
-                "orphaned_software".to_string(),
-            ]);
-            commands::registry::run(&mode, &categories, backup.as_deref())
+        Commands::Startup {
+            action,
+            name,
+            impact,
+        } => commands::startup::run(&action, name.as_deref(), impact),
+
+        Commands::Diagnose { action } => commands::diagnose::run(&action),
+
+        Commands::Doctor => commands::doctor::run(json),
+
+        Commands::DevInstall {
+            install_dir,
+            no_path,
+        } => {
+            let install_dir = install_dir.as_deref().map(std::path::Path::new);
+            commands::install::run(install_dir, !no_path)
         }
 
-        Commands::Startup { action, name, impact } => {
-            commands::startup::run(&action, name.as_deref(), impact)
+        Commands::History { id, limit } => {
+            commands::operations::history(id.as_deref(), limit, json)
         }
 
-        Commands::Diagnose { action } => {
-            commands::diagnose::run(&action)
+        Commands::Restore { id, last, dry_run } => {
+            commands::operations::restore(id.as_deref(), last, dry_run, json)
         }
 
-        Commands::Optimize { action, category, profile, dry_run } => {
-            commands::optimize::run(&action, category.as_deref(), profile.as_deref(), dry_run, json)
+        Commands::Effects {
+            id,
+            last,
+            apply,
+            yes,
+        } => commands::operations::effects(id.as_deref(), last, apply, yes, json),
+
+        Commands::Report { output } => {
+            let output = output.as_deref().map(std::path::Path::new);
+            commands::operations::report(output, json)
         }
 
-        Commands::Debloat { action, app, dry_run } => {
-            commands::optimize::debloat::run(&action, app.as_deref(), dry_run)
-        }
+        Commands::Optimize {
+            action,
+            category,
+            profile,
+            dry_run,
+        } => commands::optimize::run(
+            &action,
+            category.as_deref(),
+            profile.as_deref(),
+            dry_run,
+            json,
+        ),
 
-        Commands::Updates { action, days, dry_run } => {
-            commands::updates::run(&action, days, dry_run)
-        }
+        Commands::Debloat {
+            action,
+            app,
+            dry_run,
+        } => commands::optimize::debloat::run(&action, app.as_deref(), dry_run),
 
-        Commands::Quickfix { action, category, dry_run } => {
-            commands::quickfix::run(&action, category.as_deref(), dry_run)
-        }
+        Commands::Updates {
+            action,
+            days,
+            dry_run,
+        } => commands::updates::run(&action, days, dry_run),
 
-        Commands::SelfUpdate { check } => {
-            commands::self_update::run(check)
-        }
+        Commands::Quickfix {
+            action,
+            category,
+            dry_run,
+        } => commands::quickfix::run(&action, category.as_deref(), dry_run),
+
+        Commands::SelfUpdate { check } => commands::self_update::run(check),
 
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();

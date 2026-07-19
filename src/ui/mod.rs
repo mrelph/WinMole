@@ -2,22 +2,29 @@ pub mod theme;
 
 use anyhow::Result;
 use console::{style, Term};
-use dialoguer::{theme::ColorfulTheme, Select, MultiSelect};
+use dialoguer::{theme::ColorfulTheme, Input, MultiSelect, Select};
 
 use crate::commands;
 use theme::{icons, print_menu_footer};
 
 /// Print the WinMole ASCII logo with version
 pub fn print_logo() {
-    println!("{}", style(r#"
+    println!(
+        "{}",
+        style(
+            r#"
     __      __.__        _____         .__
     /  \    /  \__| _____/     \   ____ |  |   ____
     \   \/\/   /  |/    \  Y  /  /  _ \|  | _/ __ \
      \        /|  |   |  \   /  (  <_> )  |_\  ___/
       \__/\  / |__|___|  /\_/    \____/|____/\___  >
-           \/          \/                        \/ "#).cyan());
+           \/          \/                        \/ "#
+        )
+        .cyan()
+    );
     println!();
-    println!("         {} {} v{}",
+    println!(
+        "         {} {} v{}",
         style(icons::MOLE).white(),
         style("Windows System Optimization Tool").white().bold(),
         style(env!("CARGO_PKG_VERSION")).dim()
@@ -36,34 +43,81 @@ pub fn run_tui() -> Result<()> {
 
         // Menu with keyboard shortcuts and icons
         let options = vec![
-            format!("{} {} System Cleanup      - Clean temp files and caches",
-                style("[1]").cyan().bold(), icons::CLEANUP),
-            format!("{} {} Disk Analysis       - Analyze disk usage",
-                style("[2]").cyan().bold(), icons::DISK),
-            format!("{} {} System Status       - Real-time health monitoring",
-                style("[3]").cyan().bold(), icons::STATUS),
-            format!("{} {} Developer Cleanup   - Remove build artifacts",
-                style("[4]").cyan().bold(), icons::DEV),
-            format!("{} {} Package Manager     - Manage apps with winget",
-                style("[5]").cyan().bold(), icons::PACKAGE),
-            format!("{} {} Registry Cleaner    - Clean orphaned entries",
-                style("[6]").cyan().bold(), icons::REGISTRY),
-            format!("{} {} Startup Optimizer   - Manage startup programs",
-                style("[7]").cyan().bold(), icons::STARTUP),
-            format!("{} {} System Diagnostics  - Analyze processes & services",
-                style("[8]").cyan().bold(), icons::DIAGNOSE),
-            format!("{} {} Quick Scan          - Run quick health check",
-                style("[9]").cyan().bold(), icons::QUICK),
-            format!("{} {} Quick Fix           - Scan and fix common issues",
-                style("[F]").cyan().bold(), icons::QUICKFIX),
-            format!("{} {} Performance         - Optimize system performance",
-                style("[0]").cyan().bold(), icons::PERFORMANCE),
-            format!("{} {} Windows Updates     - Manage Windows Update settings",
-                style("[U]").cyan().bold(), icons::UPDATE),
-            format!("{} {} Self Update         - Check for WinMole updates",
-                style("[S]").cyan().bold(), icons::UPDATE),
-            format!("{} {} Exit                - Exit WinMole",
-                style("[Q]").red().bold(), icons::EXIT),
+            format!(
+                "{} {} System Cleanup      - Clean temp files and caches",
+                style("[1]").cyan().bold(),
+                icons::CLEANUP
+            ),
+            format!(
+                "{} {} Disk Analysis       - Analyze disk usage",
+                style("[2]").cyan().bold(),
+                icons::DISK
+            ),
+            format!(
+                "{} {} System Status       - Real-time health monitoring",
+                style("[3]").cyan().bold(),
+                icons::STATUS
+            ),
+            format!(
+                "{} {} Developer Cleanup   - Remove build artifacts",
+                style("[4]").cyan().bold(),
+                icons::DEV
+            ),
+            format!(
+                "{} {} Package Manager     - Manage apps with winget",
+                style("[5]").cyan().bold(),
+                icons::PACKAGE
+            ),
+            format!(
+                "{} {} Config Audit        - Review Windows configuration evidence",
+                style("[6]").cyan().bold(),
+                icons::REGISTRY
+            ),
+            format!(
+                "{} {} Startup Optimizer   - Manage startup programs",
+                style("[7]").cyan().bold(),
+                icons::STARTUP
+            ),
+            format!(
+                "{} {} System Diagnostics  - Analyze processes & services",
+                style("[8]").cyan().bold(),
+                icons::DIAGNOSE
+            ),
+            format!(
+                "{} {} Quick Scan          - Run quick health check",
+                style("[9]").cyan().bold(),
+                icons::QUICK
+            ),
+            format!(
+                "{} {} Quick Fix           - Scan and fix common issues",
+                style("[F]").cyan().bold(),
+                icons::QUICKFIX
+            ),
+            format!(
+                "{} {} Performance         - Optimize system performance",
+                style("[0]").cyan().bold(),
+                icons::PERFORMANCE
+            ),
+            format!(
+                "{} {} Windows Updates     - Manage Windows Update settings",
+                style("[U]").cyan().bold(),
+                icons::UPDATE
+            ),
+            format!(
+                "{} {} Self Update         - Check for WinMole updates",
+                style("[S]").cyan().bold(),
+                icons::UPDATE
+            ),
+            format!(
+                "{} {} Operations & About  - History, recovery, and build identity",
+                style("[A]").cyan().bold(),
+                icons::INFO
+            ),
+            format!(
+                "{} {} Exit                - Exit WinMole",
+                style("[Q]").red().bold(),
+                icons::EXIT
+            ),
         ];
 
         let selection = Select::with_theme(&ColorfulTheme::default())
@@ -76,10 +130,23 @@ pub fn run_tui() -> Result<()> {
             Some(0) => {
                 // System Cleanup
                 term.clear_screen()?;
-                theme::print_command_banner("System Cleanup", icons::CLEANUP, "Clean temp files and caches");
+                theme::print_command_banner(
+                    "System Cleanup",
+                    icons::CLEANUP,
+                    "Clean temp files and caches",
+                );
                 theme::print_breadcrumb(&["Main Menu", "System Cleanup"]);
 
-                commands::clean::run(true, &["user".to_string(), "browser".to_string(), "cache".to_string()], false, false)?;
+                commands::clean::run(
+                    true,
+                    &[
+                        "user".to_string(),
+                        "browser".to_string(),
+                        "cache".to_string(),
+                    ],
+                    false,
+                    false,
+                )?;
 
                 println!();
                 let proceed = dialoguer::Confirm::new()
@@ -89,8 +156,21 @@ pub fn run_tui() -> Result<()> {
 
                 if proceed {
                     term.clear_screen()?;
-                    theme::print_command_banner("System Cleanup", icons::CLEANUP, "Cleaning files...");
-                    commands::clean::run(false, &["user".to_string(), "browser".to_string(), "cache".to_string()], true, false)?;
+                    theme::print_command_banner(
+                        "System Cleanup",
+                        icons::CLEANUP,
+                        "Cleaning files...",
+                    );
+                    commands::clean::run(
+                        false,
+                        &[
+                            "user".to_string(),
+                            "browser".to_string(),
+                            "cache".to_string(),
+                        ],
+                        true,
+                        false,
+                    )?;
                     theme::print_success_animation("Cleanup completed successfully!");
                 }
 
@@ -101,22 +181,44 @@ pub fn run_tui() -> Result<()> {
                 // Disk Analysis - submenu loop
                 loop {
                     term.clear_screen()?;
-                    theme::print_command_banner("Disk Analysis", icons::DISK, "Analyze disk usage and files");
+                    theme::print_command_banner(
+                        "Disk Analysis",
+                        icons::DISK,
+                        "Analyze disk usage and files",
+                    );
                     theme::print_breadcrumb(&["Main Menu", "Disk Analysis"]);
 
                     let modes = vec![
-                        format!("{} {} Tree View          - Visual folder structure",
-                            style("[1]").cyan().bold(), icons::FOLDER),
-                        format!("{} {} Largest Files      - Find biggest files",
-                            style("[2]").cyan().bold(), icons::FILE),
-                        format!("{} {} Largest Folders    - Find biggest folders",
-                            style("[3]").cyan().bold(), icons::FOLDER),
-                        format!("{} {} File Types         - Breakdown by extension",
-                            style("[4]").cyan().bold(), icons::FILE),
-                        format!("{} {} Old Files          - Find old unused files",
-                            style("[5]").cyan().bold(), icons::WARNING),
-                        format!("{} {} Back to Main Menu",
-                            style("[B]").yellow().bold(), icons::BACK),
+                        format!(
+                            "{} {} Tree View          - Visual folder structure",
+                            style("[1]").cyan().bold(),
+                            icons::FOLDER
+                        ),
+                        format!(
+                            "{} {} Largest Files      - Find biggest files",
+                            style("[2]").cyan().bold(),
+                            icons::FILE
+                        ),
+                        format!(
+                            "{} {} Largest Folders    - Find biggest folders",
+                            style("[3]").cyan().bold(),
+                            icons::FOLDER
+                        ),
+                        format!(
+                            "{} {} File Types         - Breakdown by extension",
+                            style("[4]").cyan().bold(),
+                            icons::FILE
+                        ),
+                        format!(
+                            "{} {} Old Files          - Find old unused files",
+                            style("[5]").cyan().bold(),
+                            icons::WARNING
+                        ),
+                        format!(
+                            "{} {} Back to Main Menu",
+                            style("[B]").yellow().bold(),
+                            icons::BACK
+                        ),
                     ];
 
                     let mode_selection = Select::with_theme(&ColorfulTheme::default())
@@ -140,10 +242,19 @@ pub fn run_tui() -> Result<()> {
                             let path_options = vec![
                                 format!("{} C:\\Users           - User profiles", icons::FOLDER),
                                 format!("{} C:\\               - System drive root", icons::FOLDER),
-                                format!("{} C:\\Program Files  - Installed programs", icons::FOLDER),
-                                format!("{} C:\\Windows\\Temp  - Windows temp files", icons::FOLDER),
+                                format!(
+                                    "{} C:\\Program Files  - Installed programs",
+                                    icons::FOLDER
+                                ),
+                                format!(
+                                    "{} C:\\Windows\\Temp  - Windows temp files",
+                                    icons::FOLDER
+                                ),
                                 format!("{} D:\\               - Secondary drive", icons::FOLDER),
-                                format!("{} Custom path...     - Enter a custom path", icons::BULLET),
+                                format!(
+                                    "{} Custom path...     - Enter a custom path",
+                                    icons::BULLET
+                                ),
                             ];
 
                             let path_selection = Select::with_theme(&ColorfulTheme::default())
@@ -158,12 +269,10 @@ pub fn run_tui() -> Result<()> {
                                 Some(2) => "C:\\Program Files".to_string(),
                                 Some(3) => "C:\\Windows\\Temp".to_string(),
                                 Some(4) => "D:\\".to_string(),
-                                Some(5) => {
-                                    dialoguer::Input::new()
-                                        .with_prompt("Enter custom path")
-                                        .default("C:\\".to_string())
-                                        .interact_text()?
-                                }
+                                Some(5) => dialoguer::Input::new()
+                                    .with_prompt("Enter custom path")
+                                    .default("C:\\".to_string())
+                                    .interact_text()?,
                                 None => continue, // User pressed Esc
                                 _ => "C:\\Users".to_string(),
                             };
@@ -180,7 +289,11 @@ pub fn run_tui() -> Result<()> {
             Some(2) => {
                 // System Status
                 term.clear_screen()?;
-                theme::print_command_banner("System Status", icons::STATUS, "Real-time system health");
+                theme::print_command_banner(
+                    "System Status",
+                    icons::STATUS,
+                    "Real-time system health",
+                );
                 theme::print_breadcrumb(&["Main Menu", "System Status"]);
 
                 commands::status::run(false, 2, false)?;
@@ -202,18 +315,39 @@ pub fn run_tui() -> Result<()> {
             Some(3) => {
                 // Developer Cleanup
                 term.clear_screen()?;
-                theme::print_command_banner("Developer Cleanup", icons::DEV, "Remove build artifacts");
+                theme::print_command_banner(
+                    "Developer Cleanup",
+                    icons::DEV,
+                    "Remove build artifacts",
+                );
                 theme::print_breadcrumb(&["Main Menu", "Developer Cleanup"]);
 
                 // Common development folder paths
-                let home_dir = dirs::home_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| "C:\\Users".to_string());
+                let home_dir = dirs::home_dir()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "C:\\Users".to_string());
                 let path_options = vec![
                     format!("{} Current directory   - Scan from here", icons::FOLDER),
-                    format!("{} {}\\Projects    - Projects folder", icons::FOLDER, home_dir),
-                    format!("{} {}\\Documents   - Documents folder", icons::FOLDER, home_dir),
-                    format!("{} {}\\source      - Source folder", icons::FOLDER, home_dir),
+                    format!(
+                        "{} {}\\Projects    - Projects folder",
+                        icons::FOLDER,
+                        home_dir
+                    ),
+                    format!(
+                        "{} {}\\Documents   - Documents folder",
+                        icons::FOLDER,
+                        home_dir
+                    ),
+                    format!(
+                        "{} {}\\source      - Source folder",
+                        icons::FOLDER,
+                        home_dir
+                    ),
                     format!("{} {}\\repos       - Repos folder", icons::FOLDER, home_dir),
-                    format!("{} Custom path...      - Enter a custom path", icons::BULLET),
+                    format!(
+                        "{} Custom path...      - Enter a custom path",
+                        icons::BULLET
+                    ),
                 ];
 
                 let path_selection = Select::with_theme(&ColorfulTheme::default())
@@ -228,12 +362,10 @@ pub fn run_tui() -> Result<()> {
                     Some(2) => format!("{}\\Documents", home_dir),
                     Some(3) => format!("{}\\source", home_dir),
                     Some(4) => format!("{}\\repos", home_dir),
-                    Some(5) => {
-                        dialoguer::Input::new()
-                            .with_prompt("Enter custom path")
-                            .default(".".to_string())
-                            .interact_text()?
-                    }
+                    Some(5) => dialoguer::Input::new()
+                        .with_prompt("Enter custom path")
+                        .default(".".to_string())
+                        .interact_text()?,
                     None => {
                         // User pressed Esc - return to main menu
                         continue;
@@ -243,7 +375,12 @@ pub fn run_tui() -> Result<()> {
 
                 commands::dev::run(
                     &path,
-                    &["node_modules".to_string(), "target".to_string(), "bin".to_string(), "obj".to_string()],
+                    &[
+                        "node_modules".to_string(),
+                        "target".to_string(),
+                        "bin".to_string(),
+                        "obj".to_string(),
+                    ],
                     None,
                     true,
                     false,
@@ -256,10 +393,19 @@ pub fn run_tui() -> Result<()> {
 
                 if proceed {
                     term.clear_screen()?;
-                    theme::print_command_banner("Developer Cleanup", icons::DEV, "Cleaning artifacts...");
+                    theme::print_command_banner(
+                        "Developer Cleanup",
+                        icons::DEV,
+                        "Cleaning artifacts...",
+                    );
                     commands::dev::run(
                         &path,
-                        &["node_modules".to_string(), "target".to_string(), "bin".to_string(), "obj".to_string()],
+                        &[
+                            "node_modules".to_string(),
+                            "target".to_string(),
+                            "bin".to_string(),
+                            "obj".to_string(),
+                        ],
                         None,
                         false,
                         true,
@@ -274,26 +420,54 @@ pub fn run_tui() -> Result<()> {
                 // Package Manager - submenu loop
                 loop {
                     term.clear_screen()?;
-                    theme::print_command_banner("Package Manager", icons::PACKAGE, "Manage applications with winget");
+                    theme::print_command_banner(
+                        "Package Manager",
+                        icons::PACKAGE,
+                        "Manage applications with winget",
+                    );
                     theme::print_breadcrumb(&["Main Menu", "Package Manager"]);
 
                     let actions = vec![
-                        format!("{} {} List Installed      - View all packages",
-                            style("[1]").cyan().bold(), icons::BULLET),
-                        format!("{} {} Check for Updates   - Find available updates",
-                            style("[2]").cyan().bold(), icons::INFO),
-                        format!("{} {} Update All          - Update all packages",
-                            style("[3]").cyan().bold(), icons::ARROW_UP),
-                        format!("{} {} Update Selected     - Choose packages to update",
-                            style("[4]").cyan().bold(), icons::SUCCESS),
-                        format!("{} {} Uninstall Package   - Remove a package",
-                            style("[5]").cyan().bold(), icons::ERROR),
-                        format!("{} {} Search Packages     - Find new packages",
-                            style("[6]").cyan().bold(), icons::DIAGNOSE),
-                        format!("{} {} Export Package List - Save to file",
-                            style("[7]").cyan().bold(), icons::FILE),
-                        format!("{} {} Back to Main Menu",
-                            style("[B]").yellow().bold(), icons::BACK),
+                        format!(
+                            "{} {} List Installed      - View all packages",
+                            style("[1]").cyan().bold(),
+                            icons::BULLET
+                        ),
+                        format!(
+                            "{} {} Check for Updates   - Find available updates",
+                            style("[2]").cyan().bold(),
+                            icons::INFO
+                        ),
+                        format!(
+                            "{} {} Update All          - Update all packages",
+                            style("[3]").cyan().bold(),
+                            icons::ARROW_UP
+                        ),
+                        format!(
+                            "{} {} Update Selected     - Choose packages to update",
+                            style("[4]").cyan().bold(),
+                            icons::SUCCESS
+                        ),
+                        format!(
+                            "{} {} Uninstall Package   - Remove a package",
+                            style("[5]").cyan().bold(),
+                            icons::ERROR
+                        ),
+                        format!(
+                            "{} {} Search Packages     - Find new packages",
+                            style("[6]").cyan().bold(),
+                            icons::DIAGNOSE
+                        ),
+                        format!(
+                            "{} {} Export Package List - Save to file",
+                            style("[7]").cyan().bold(),
+                            icons::FILE
+                        ),
+                        format!(
+                            "{} {} Back to Main Menu",
+                            style("[B]").yellow().bold(),
+                            icons::BACK
+                        ),
                     ];
 
                     let action_selection = Select::with_theme(&ColorfulTheme::default())
@@ -308,18 +482,32 @@ pub fn run_tui() -> Result<()> {
                             term.clear_screen()?;
                             match action_idx {
                                 0 => {
-                                    theme::print_command_banner("Package Manager", icons::PACKAGE, "Installed packages");
+                                    theme::print_command_banner(
+                                        "Package Manager",
+                                        icons::PACKAGE,
+                                        "Installed packages",
+                                    );
                                     commands::winget::run("list", None, false)?;
                                 }
                                 1 => {
-                                    theme::print_command_banner("Package Manager", icons::PACKAGE, "Checking for updates");
+                                    theme::print_command_banner(
+                                        "Package Manager",
+                                        icons::PACKAGE,
+                                        "Checking for updates",
+                                    );
                                     commands::winget::run("audit", None, false)?;
                                 }
                                 2 => {
-                                    theme::print_command_banner("Package Manager", icons::PACKAGE, "Update all packages");
+                                    theme::print_command_banner(
+                                        "Package Manager",
+                                        icons::PACKAGE,
+                                        "Update all packages",
+                                    );
                                     commands::winget::run("audit", None, false)?;
                                     println!();
-                                    theme::print_warning("This will update all packages with available updates.");
+                                    theme::print_warning(
+                                        "This will update all packages with available updates.",
+                                    );
                                     let proceed = dialoguer::Confirm::new()
                                         .with_prompt("Update all packages?")
                                         .default(false)
@@ -330,24 +518,40 @@ pub fn run_tui() -> Result<()> {
                                     }
                                 }
                                 3 => {
-                                    theme::print_command_banner("Package Manager", icons::PACKAGE, "Select packages to update");
+                                    theme::print_command_banner(
+                                        "Package Manager",
+                                        icons::PACKAGE,
+                                        "Select packages to update",
+                                    );
                                     // Call the actual update function with interactive selection
                                     commands::winget::run("update", None, false)?;
                                 }
                                 4 => {
-                                    theme::print_command_banner("Package Manager", icons::PACKAGE, "Uninstall package");
+                                    theme::print_command_banner(
+                                        "Package Manager",
+                                        icons::PACKAGE,
+                                        "Uninstall package",
+                                    );
                                     // Call the actual uninstall function with interactive selection
                                     commands::winget::run("uninstall", None, false)?;
                                 }
                                 5 => {
-                                    theme::print_command_banner("Package Manager", icons::PACKAGE, "Search packages");
+                                    theme::print_command_banner(
+                                        "Package Manager",
+                                        icons::PACKAGE,
+                                        "Search packages",
+                                    );
                                     let query: String = dialoguer::Input::new()
                                         .with_prompt("Enter search query")
                                         .interact_text()?;
                                     commands::winget::run("search", Some(&query), false)?;
                                 }
                                 6 => {
-                                    theme::print_command_banner("Package Manager", icons::PACKAGE, "Export package list");
+                                    theme::print_command_banner(
+                                        "Package Manager",
+                                        icons::PACKAGE,
+                                        "Export package list",
+                                    );
                                     commands::winget::run("export", None, false)?;
                                     theme::print_success("Package list exported!");
                                 }
@@ -360,23 +564,42 @@ pub fn run_tui() -> Result<()> {
             }
 
             Some(5) => {
-                // Registry Cleaner - submenu loop
+                // Configuration Audit - submenu loop
                 loop {
                     term.clear_screen()?;
-                    theme::print_command_banner("Registry Cleaner", icons::REGISTRY, "Scan and clean registry");
-                    theme::print_breadcrumb(&["Main Menu", "Registry Cleaner"]);
+                    theme::print_command_banner(
+                        "Configuration Audit",
+                        icons::REGISTRY,
+                        "Review Windows configuration evidence",
+                    );
+                    theme::print_breadcrumb(&["Main Menu", "Configuration Audit"]);
 
                     let actions = vec![
-                        format!("{} {} Full Registry Scan        - Scan all categories",
-                            style("[1]").cyan().bold(), icons::DIAGNOSE),
-                        format!("{} {} Scan Invalid Paths        - Find broken paths",
-                            style("[2]").cyan().bold(), icons::FOLDER),
-                        format!("{} {} Scan Missing DLLs         - Find missing DLLs",
-                            style("[3]").cyan().bold(), icons::FILE),
-                        format!("{} {} Scan Orphaned Software    - Find leftover entries",
-                            style("[4]").cyan().bold(), icons::CLEANUP),
-                        format!("{} {} Back to Main Menu",
-                            style("[B]").yellow().bold(), icons::BACK),
+                        format!(
+                            "{} {} Full Registry Scan        - Scan all categories",
+                            style("[1]").cyan().bold(),
+                            icons::DIAGNOSE
+                        ),
+                        format!(
+                            "{} {} Scan Invalid Paths        - Find broken paths",
+                            style("[2]").cyan().bold(),
+                            icons::FOLDER
+                        ),
+                        format!(
+                            "{} {} Scan Missing DLLs         - Find missing DLLs",
+                            style("[3]").cyan().bold(),
+                            icons::FILE
+                        ),
+                        format!(
+                            "{} {} Scan Orphaned Software    - Find leftover entries",
+                            style("[4]").cyan().bold(),
+                            icons::CLEANUP
+                        ),
+                        format!(
+                            "{} {} Back to Main Menu",
+                            style("[B]").yellow().bold(),
+                            icons::BACK
+                        ),
                     ];
 
                     let action_selection = Select::with_theme(&ColorfulTheme::default())
@@ -393,14 +616,21 @@ pub fn run_tui() -> Result<()> {
                                 1 => (vec!["invalid_paths".to_string()], "Invalid paths"),
                                 2 => (vec!["missing_dlls".to_string()], "Missing DLLs"),
                                 3 => (vec!["orphaned_software".to_string()], "Orphaned software"),
-                                _ => (vec![
-                                    "invalid_paths".to_string(),
-                                    "missing_dlls".to_string(),
-                                    "orphaned_software".to_string(),
-                                ], "Full scan"),
+                                _ => (
+                                    vec![
+                                        "invalid_paths".to_string(),
+                                        "missing_dlls".to_string(),
+                                        "orphaned_software".to_string(),
+                                    ],
+                                    "Full scan",
+                                ),
                             };
-                            theme::print_command_banner("Registry Cleaner", icons::REGISTRY, desc);
-                            commands::registry::run("scan", &categories, None)?;
+                            theme::print_command_banner(
+                                "Configuration Audit",
+                                icons::REGISTRY,
+                                desc,
+                            );
+                            commands::registry::run("audit", &categories, None, false, false)?;
                             wait_for_enter()?;
                         }
                     }
@@ -411,20 +641,39 @@ pub fn run_tui() -> Result<()> {
                 // Startup Optimizer - submenu loop
                 loop {
                     term.clear_screen()?;
-                    theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Manage startup programs");
+                    theme::print_command_banner(
+                        "Startup Optimizer",
+                        icons::STARTUP,
+                        "Manage startup programs",
+                    );
                     theme::print_breadcrumb(&["Main Menu", "Startup Optimizer"]);
 
                     let actions = vec![
-                        format!("{} {} List Startup Items   - View all startup programs",
-                            style("[1]").cyan().bold(), icons::BULLET),
-                        format!("{} {} Boot Impact Analysis - Check boot performance",
-                            style("[2]").cyan().bold(), icons::STATUS),
-                        format!("{} {} Disable Item         - Disable a startup program",
-                            style("[3]").cyan().bold(), icons::ERROR),
-                        format!("{} {} Enable Item          - Enable a startup program",
-                            style("[4]").cyan().bold(), icons::SUCCESS),
-                        format!("{} {} Back to Main Menu",
-                            style("[B]").yellow().bold(), icons::BACK),
+                        format!(
+                            "{} {} List Startup Items   - View all startup programs",
+                            style("[1]").cyan().bold(),
+                            icons::BULLET
+                        ),
+                        format!(
+                            "{} {} Boot Impact Analysis - Check boot performance",
+                            style("[2]").cyan().bold(),
+                            icons::STATUS
+                        ),
+                        format!(
+                            "{} {} Disable Item         - Disable a startup program",
+                            style("[3]").cyan().bold(),
+                            icons::ERROR
+                        ),
+                        format!(
+                            "{} {} Enable Item          - Enable a startup program",
+                            style("[4]").cyan().bold(),
+                            icons::SUCCESS
+                        ),
+                        format!(
+                            "{} {} Back to Main Menu",
+                            style("[B]").yellow().bold(),
+                            icons::BACK
+                        ),
                     ];
 
                     let action_selection = Select::with_theme(&ColorfulTheme::default())
@@ -439,30 +688,49 @@ pub fn run_tui() -> Result<()> {
                             term.clear_screen()?;
                             match action_idx {
                                 0 => {
-                                    theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Startup items");
+                                    theme::print_command_banner(
+                                        "Startup Optimizer",
+                                        icons::STARTUP,
+                                        "Startup items",
+                                    );
                                     commands::startup::run("list", None, true)?;
                                 }
                                 1 => {
-                                    theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Boot impact analysis");
+                                    theme::print_command_banner(
+                                        "Startup Optimizer",
+                                        icons::STARTUP,
+                                        "Boot impact analysis",
+                                    );
                                     commands::startup::run("analyze", None, false)?;
                                 }
                                 2 => {
-                                    theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Disable startup items");
+                                    theme::print_command_banner(
+                                        "Startup Optimizer",
+                                        icons::STARTUP,
+                                        "Disable startup items",
+                                    );
                                     let items = commands::startup::get_startup_items();
-                                    let enabled_items: Vec<_> = items.iter().filter(|i| i.enabled).collect();
+                                    let enabled_items: Vec<_> =
+                                        items.iter().filter(|i| i.enabled).collect();
 
                                     if enabled_items.is_empty() {
                                         theme::print_warning("No enabled startup items found");
                                     } else {
-                                        let options: Vec<String> = enabled_items.iter()
+                                        let options: Vec<String> = enabled_items
+                                            .iter()
                                             .map(|i| {
                                                 let impact_str = match i.impact.as_str() {
                                                     "High" => format!("{}", style("High").red()),
-                                                    "Medium" => format!("{}", style("Medium").yellow()),
+                                                    "Medium" => {
+                                                        format!("{}", style("Medium").yellow())
+                                                    }
                                                     "Low" => format!("{}", style("Low").green()),
                                                     _ => format!("{}", style("Unknown").dim()),
                                                 };
-                                                format!("{:<30} {} - {}", i.name, i.category, impact_str)
+                                                format!(
+                                                    "{:<30} {} - {}",
+                                                    i.name, i.category, impact_str
+                                                )
                                             })
                                             .collect();
 
@@ -486,32 +754,52 @@ pub fn run_tui() -> Result<()> {
                                             } else {
                                                 for idx in &indices {
                                                     let name = &enabled_items[*idx].name;
-                                                    commands::startup::run("disable", Some(name), false)?;
-                                                    theme::print_success(&format!("Disabled: {}", name));
+                                                    commands::startup::run(
+                                                        "disable",
+                                                        Some(name),
+                                                        false,
+                                                    )?;
+                                                    theme::print_success(&format!(
+                                                        "Disabled: {}",
+                                                        name
+                                                    ));
                                                 }
                                                 println!();
-                                                theme::print_success(&format!("Disabled {} item(s)", indices.len()));
+                                                theme::print_success(&format!(
+                                                    "Disabled {} item(s)",
+                                                    indices.len()
+                                                ));
                                             }
                                         }
                                     }
                                 }
                                 3 => {
-                                    theme::print_command_banner("Startup Optimizer", icons::STARTUP, "Enable startup items");
+                                    theme::print_command_banner(
+                                        "Startup Optimizer",
+                                        icons::STARTUP,
+                                        "Enable startup items",
+                                    );
                                     let items = commands::startup::get_startup_items();
 
                                     if items.is_empty() {
                                         theme::print_warning("No startup items found");
                                     } else {
                                         // Show all items since we can't easily detect disabled state from registry
-                                        let options: Vec<String> = items.iter()
+                                        let options: Vec<String> = items
+                                            .iter()
                                             .map(|i| {
                                                 let impact_str = match i.impact.as_str() {
                                                     "High" => format!("{}", style("High").red()),
-                                                    "Medium" => format!("{}", style("Medium").yellow()),
+                                                    "Medium" => {
+                                                        format!("{}", style("Medium").yellow())
+                                                    }
                                                     "Low" => format!("{}", style("Low").green()),
                                                     _ => format!("{}", style("Unknown").dim()),
                                                 };
-                                                format!("{:<30} {} - {}", i.name, i.category, impact_str)
+                                                format!(
+                                                    "{:<30} {} - {}",
+                                                    i.name, i.category, impact_str
+                                                )
                                             })
                                             .collect();
 
@@ -535,11 +823,21 @@ pub fn run_tui() -> Result<()> {
                                             } else {
                                                 for idx in &indices {
                                                     let name = &items[*idx].name;
-                                                    commands::startup::run("enable", Some(name), false)?;
-                                                    theme::print_success(&format!("Enabled: {}", name));
+                                                    commands::startup::run(
+                                                        "enable",
+                                                        Some(name),
+                                                        false,
+                                                    )?;
+                                                    theme::print_success(&format!(
+                                                        "Enabled: {}",
+                                                        name
+                                                    ));
                                                 }
                                                 println!();
-                                                theme::print_success(&format!("Enabled {} item(s)", indices.len()));
+                                                theme::print_success(&format!(
+                                                    "Enabled {} item(s)",
+                                                    indices.len()
+                                                ));
                                             }
                                         }
                                     }
@@ -556,20 +854,39 @@ pub fn run_tui() -> Result<()> {
                 // System Diagnostics - submenu loop
                 loop {
                     term.clear_screen()?;
-                    theme::print_command_banner("System Diagnostics", icons::DIAGNOSE, "Analyze system health");
+                    theme::print_command_banner(
+                        "System Diagnostics",
+                        icons::DIAGNOSE,
+                        "Analyze system health",
+                    );
                     theme::print_breadcrumb(&["Main Menu", "System Diagnostics"]);
 
                     let actions = vec![
-                        format!("{} {} Process Analysis     - Find high CPU/memory processes",
-                            style("[1]").cyan().bold(), icons::STATUS),
-                        format!("{} {} Memory Analysis      - Detailed memory breakdown",
-                            style("[2]").cyan().bold(), icons::INFO),
-                        format!("{} {} Service Analysis     - Check Windows services",
-                            style("[3]").cyan().bold(), icons::STARTUP),
-                        format!("{} {} Run All Diagnostics  - Complete system analysis",
-                            style("[4]").cyan().bold(), icons::QUICK),
-                        format!("{} {} Back to Main Menu",
-                            style("[B]").yellow().bold(), icons::BACK),
+                        format!(
+                            "{} {} Process Analysis     - Find high CPU/memory processes",
+                            style("[1]").cyan().bold(),
+                            icons::STATUS
+                        ),
+                        format!(
+                            "{} {} Memory Analysis      - Detailed memory breakdown",
+                            style("[2]").cyan().bold(),
+                            icons::INFO
+                        ),
+                        format!(
+                            "{} {} Service Analysis     - Check Windows services",
+                            style("[3]").cyan().bold(),
+                            icons::STARTUP
+                        ),
+                        format!(
+                            "{} {} Run All Diagnostics  - Complete system analysis",
+                            style("[4]").cyan().bold(),
+                            icons::QUICK
+                        ),
+                        format!(
+                            "{} {} Back to Main Menu",
+                            style("[B]").yellow().bold(),
+                            icons::BACK
+                        ),
                     ];
 
                     let action_selection = Select::with_theme(&ColorfulTheme::default())
@@ -584,19 +901,35 @@ pub fn run_tui() -> Result<()> {
                             term.clear_screen()?;
                             match action_idx {
                                 0 => {
-                                    theme::print_command_banner("System Diagnostics", icons::DIAGNOSE, "Process analysis");
+                                    theme::print_command_banner(
+                                        "System Diagnostics",
+                                        icons::DIAGNOSE,
+                                        "Process analysis",
+                                    );
                                     commands::diagnose::run("processes")?;
                                 }
                                 1 => {
-                                    theme::print_command_banner("System Diagnostics", icons::DIAGNOSE, "Memory analysis");
+                                    theme::print_command_banner(
+                                        "System Diagnostics",
+                                        icons::DIAGNOSE,
+                                        "Memory analysis",
+                                    );
                                     commands::diagnose::run("memory")?;
                                 }
                                 2 => {
-                                    theme::print_command_banner("System Diagnostics", icons::DIAGNOSE, "Service analysis");
+                                    theme::print_command_banner(
+                                        "System Diagnostics",
+                                        icons::DIAGNOSE,
+                                        "Service analysis",
+                                    );
                                     commands::diagnose::run("services")?;
                                 }
                                 _ => {
-                                    theme::print_command_banner("System Diagnostics", icons::DIAGNOSE, "Full diagnostics");
+                                    theme::print_command_banner(
+                                        "System Diagnostics",
+                                        icons::DIAGNOSE,
+                                        "Full diagnostics",
+                                    );
                                     commands::diagnose::run("all")?;
                                 }
                             }
@@ -624,28 +957,59 @@ pub fn run_tui() -> Result<()> {
                 // Performance Optimization - submenu loop
                 loop {
                     term.clear_screen()?;
-                    theme::print_command_banner("Performance Optimization", icons::PERFORMANCE, "Optimize system performance");
+                    theme::print_command_banner(
+                        "Performance Optimization",
+                        icons::PERFORMANCE,
+                        "Optimize system performance",
+                    );
                     theme::print_breadcrumb(&["Main Menu", "Performance"]);
 
                     let actions = vec![
-                        format!("{} {} Performance Profiles   - Gaming/Workstation/Balanced",
-                            style("[1]").cyan().bold(), icons::PERFORMANCE),
-                        format!("{} {} Privacy & Telemetry    - Disable data collection",
-                            style("[2]").cyan().bold(), icons::PRIVACY),
-                        format!("{} {} Network Optimization   - Reduce latency",
-                            style("[3]").cyan().bold(), icons::NETWORK),
-                        format!("{} {} App Debloater          - Remove bloatware",
-                            style("[4]").cyan().bold(), icons::DEBLOAT),
-                        format!("{} {} Memory & Storage       - SysMain, NTFS tweaks",
-                            style("[5]").cyan().bold(), icons::MEMORY),
-                        format!("{} {} UI Responsiveness      - Menu delays, timeouts",
-                            style("[6]").cyan().bold(), icons::QUICK),
-                        format!("{} {} Hardware Tweaks        - Advanced (use caution)",
-                            style("[7]").cyan().bold(), icons::HARDWARE),
-                        format!("{} {} Tweak History          - View/revert applied tweaks",
-                            style("[8]").cyan().bold(), icons::INFO),
-                        format!("{} {} Back to Main Menu",
-                            style("[B]").yellow().bold(), icons::BACK),
+                        format!(
+                            "{} {} Performance Profiles   - Gaming/Workstation/Balanced",
+                            style("[1]").cyan().bold(),
+                            icons::PERFORMANCE
+                        ),
+                        format!(
+                            "{} {} Privacy & Telemetry    - Disable data collection",
+                            style("[2]").cyan().bold(),
+                            icons::PRIVACY
+                        ),
+                        format!(
+                            "{} {} Network Optimization   - Reduce latency",
+                            style("[3]").cyan().bold(),
+                            icons::NETWORK
+                        ),
+                        format!(
+                            "{} {} App Debloater          - Remove bloatware",
+                            style("[4]").cyan().bold(),
+                            icons::DEBLOAT
+                        ),
+                        format!(
+                            "{} {} Memory & Storage       - SysMain, NTFS tweaks",
+                            style("[5]").cyan().bold(),
+                            icons::MEMORY
+                        ),
+                        format!(
+                            "{} {} UI Responsiveness      - Menu delays, timeouts",
+                            style("[6]").cyan().bold(),
+                            icons::QUICK
+                        ),
+                        format!(
+                            "{} {} Hardware Tweaks        - Advanced (use caution)",
+                            style("[7]").cyan().bold(),
+                            icons::HARDWARE
+                        ),
+                        format!(
+                            "{} {} Tweak History          - View/revert applied tweaks",
+                            style("[8]").cyan().bold(),
+                            icons::INFO
+                        ),
+                        format!(
+                            "{} {} Back to Main Menu",
+                            style("[B]").yellow().bold(),
+                            icons::BACK
+                        ),
                     ];
 
                     let action_selection = Select::with_theme(&ColorfulTheme::default())
@@ -665,11 +1029,21 @@ pub fn run_tui() -> Result<()> {
                                 }
                                 1 => {
                                     // Privacy & Telemetry
-                                    run_category_menu(&term, "Privacy & Telemetry", icons::PRIVACY, "privacy")?;
+                                    run_category_menu(
+                                        &term,
+                                        "Privacy & Telemetry",
+                                        icons::PRIVACY,
+                                        "privacy",
+                                    )?;
                                 }
                                 2 => {
                                     // Network Optimization
-                                    run_category_menu(&term, "Network Optimization", icons::NETWORK, "network")?;
+                                    run_category_menu(
+                                        &term,
+                                        "Network Optimization",
+                                        icons::NETWORK,
+                                        "network",
+                                    )?;
                                 }
                                 3 => {
                                     // App Debloater
@@ -677,15 +1051,30 @@ pub fn run_tui() -> Result<()> {
                                 }
                                 4 => {
                                     // Memory & Storage
-                                    run_category_menu(&term, "Memory & Storage", icons::MEMORY, "memory")?;
+                                    run_category_menu(
+                                        &term,
+                                        "Memory & Storage",
+                                        icons::MEMORY,
+                                        "memory",
+                                    )?;
                                 }
                                 5 => {
                                     // UI Responsiveness
-                                    run_category_menu(&term, "UI Responsiveness", icons::QUICK, "ui")?;
+                                    run_category_menu(
+                                        &term,
+                                        "UI Responsiveness",
+                                        icons::QUICK,
+                                        "ui",
+                                    )?;
                                 }
                                 6 => {
                                     // Hardware Tweaks
-                                    run_category_menu(&term, "Hardware Tweaks", icons::HARDWARE, "hardware")?;
+                                    run_category_menu(
+                                        &term,
+                                        "Hardware Tweaks",
+                                        icons::HARDWARE,
+                                        "hardware",
+                                    )?;
                                 }
                                 7 => {
                                     // Tweak History
@@ -708,11 +1097,18 @@ pub fn run_tui() -> Result<()> {
                 commands::self_update::run_submenu(&term)?;
             }
 
-            Some(13) | None => {
+            Some(13) => {
+                run_operations_menu(&term)?;
+            }
+
+            Some(14) | None => {
                 // Exit
                 term.clear_screen()?;
                 println!();
-                println!("{}", style(r#"
+                println!(
+                    "{}",
+                    style(
+                        r#"
       .--.              .--.
      ( (`\\            //`) )
       \ \ \    __    / / /
@@ -723,8 +1119,16 @@ pub fn run_tui() -> Result<()> {
           \   |  |   /
            `. |  | .`
              `----`
-                "#).dim());
-                println!("  {}", style("Thanks for using WinMole! Happy digging! 🐾").cyan().bold());
+                "#
+                    )
+                    .dim()
+                );
+                println!(
+                    "  {}",
+                    style("Thanks for using WinMole! Happy digging! 🐾")
+                        .cyan()
+                        .bold()
+                );
                 println!();
                 break;
             }
@@ -736,20 +1140,88 @@ pub fn run_tui() -> Result<()> {
     Ok(())
 }
 
+fn run_operations_menu(term: &Term) -> Result<()> {
+    loop {
+        term.clear_screen()?;
+        theme::print_command_banner(
+            "Operations & About",
+            icons::INFO,
+            "History, recovery, and executable identity",
+        );
+        theme::print_breadcrumb(&["Main Menu", "Operations & About"]);
+        let options = vec![
+            "Operation History",
+            "Restore Latest Recoverable Operation",
+            "Doctor / Build Identity",
+            "Back to Main Menu",
+        ];
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select an action (Esc to go back)")
+            .items(&options)
+            .default(0)
+            .interact_opt()?;
+
+        match selection {
+            Some(0) => {
+                term.clear_screen()?;
+                commands::operations::history(None, 20, false)?;
+                wait_for_enter()?;
+            }
+            Some(1) => {
+                term.clear_screen()?;
+                commands::operations::restore(None, true, true, false)?;
+                println!();
+                let proceed = dialoguer::Confirm::new()
+                    .with_prompt("Restore the latest recoverable operation?")
+                    .default(false)
+                    .interact()?;
+                if proceed {
+                    commands::operations::restore(None, true, false, false)?;
+                }
+                wait_for_enter()?;
+            }
+            Some(2) => {
+                term.clear_screen()?;
+                commands::doctor::run(false)?;
+                wait_for_enter()?;
+            }
+            Some(3) | None => break,
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 /// Run the performance profiles submenu
 fn run_profiles_menu(term: &Term) -> Result<()> {
     use commands::optimize::profiles::get_profiles;
 
     loop {
         term.clear_screen()?;
-        theme::print_command_banner("Performance Profiles", icons::PERFORMANCE, "Apply optimized settings for your use case");
+        theme::print_command_banner(
+            "Performance Profiles",
+            icons::PERFORMANCE,
+            "Apply optimized settings for your use case",
+        );
         theme::print_breadcrumb(&["Main Menu", "Performance", "Profiles"]);
 
         let profiles = get_profiles();
-        let mut options: Vec<String> = profiles.iter().map(|p| {
-            format!("{} {} - {}", style(&p.name).white().bold(), style(format!("({} tweaks)", p.tweak_ids.len())).dim(), p.description)
-        }).collect();
-        options.push(format!("{} {} Back to Performance Menu", style("[B]").yellow().bold(), icons::BACK));
+        let mut options: Vec<String> = profiles
+            .iter()
+            .map(|p| {
+                format!(
+                    "{} {} - {}",
+                    style(&p.name).white().bold(),
+                    style(format!("({} tweaks)", p.tweak_ids.len())).dim(),
+                    p.description
+                )
+            })
+            .collect();
+        options.push(format!(
+            "{} {} Back to Performance Menu",
+            style("[B]").yellow().bold(),
+            icons::BACK
+        ));
 
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("Select a profile (Esc to go back)")
@@ -762,10 +1234,17 @@ fn run_profiles_menu(term: &Term) -> Result<()> {
                 let profile = &profiles[idx];
 
                 term.clear_screen()?;
-                theme::print_command_banner(&format!("{} Profile", profile.name), icons::PERFORMANCE, &profile.description);
+                theme::print_command_banner(
+                    &format!("{} Profile", profile.name),
+                    icons::PERFORMANCE,
+                    &profile.description,
+                );
 
                 // Show what tweaks will be applied
-                println!("  {} This profile will apply the following tweaks:", style(icons::INFO).cyan());
+                println!(
+                    "  {} This profile will apply the following tweaks:",
+                    style(icons::INFO).cyan()
+                );
                 println!();
                 for tweak_id in &profile.tweak_ids {
                     println!("    {} {}", style(icons::BULLET).cyan(), tweak_id);
@@ -785,15 +1264,29 @@ fn run_profiles_menu(term: &Term) -> Result<()> {
                     // Check for admin
                     if !commands::optimize::is_elevated() {
                         theme::print_warning("Some tweaks require administrator privileges.");
-                        theme::print_info("Please restart WinMole as Administrator for full functionality.");
+                        theme::print_info(
+                            "Please restart WinMole as Administrator for full functionality.",
+                        );
                         wait_for_enter()?;
                         continue;
                     }
 
                     term.clear_screen()?;
-                    theme::print_command_banner(&format!("{} Profile", profile.name), icons::PERFORMANCE, "Applying tweaks...");
-                    commands::optimize::run("apply", None, Some(&profile.id), false, false)?;
-                    theme::print_success_animation(&format!("{} profile applied successfully!", profile.name));
+                    theme::print_command_banner(
+                        &format!("{} Profile", profile.name),
+                        icons::PERFORMANCE,
+                        "Applying tweaks...",
+                    );
+                    match commands::optimize::run("apply", None, Some(&profile.id), false, false) {
+                        Ok(()) => theme::print_info(&format!(
+                            "{} profile apply completed. Review the verification results above.",
+                            profile.name
+                        )),
+                        Err(error) => theme::print_error(&format!(
+                            "{} profile was only partially applied: {}",
+                            profile.name, error
+                        )),
+                    }
                 }
 
                 wait_for_enter()?;
@@ -807,8 +1300,8 @@ fn run_profiles_menu(term: &Term) -> Result<()> {
 
 /// Run a category-specific tweak menu
 fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Result<()> {
-    use commands::optimize::{TweakRegistry, TweakExecutor};
     use commands::optimize::common::TweakCategory;
+    use commands::optimize::{TweakExecutor, TweakRegistry};
 
     let registry = TweakRegistry::new();
     let executor = TweakExecutor::new(false);
@@ -835,24 +1328,46 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
             break;
         }
 
-        let mut options: Vec<String> = tweaks.iter().map(|t| {
-            let state = executor.detect_state(t).unwrap_or(commands::optimize::common::TweakState::Unknown);
-            let state_indicator = match state {
-                commands::optimize::common::TweakState::Applied => style("[ON]").green(),
-                commands::optimize::common::TweakState::NotApplied => style("[OFF]").dim(),
-                commands::optimize::common::TweakState::PartiallyApplied => style("[PARTIAL]").yellow(),
-                commands::optimize::common::TweakState::Unknown => style("[?]").red(),
-            };
-            let risk_indicator = match t.risk {
-                commands::optimize::common::TweakRisk::Safe => style("[Safe]").green(),
-                commands::optimize::common::TweakRisk::Moderate => style("[Mod]").yellow(),
-                commands::optimize::common::TweakRisk::Risky => style("[Risk]").red(),
-                commands::optimize::common::TweakRisk::Dangerous => style("[DANGER]").red().bold(),
-            };
-            format!("{} {} {} - {}", state_indicator, risk_indicator, t.name, style(&t.description).dim())
-        }).collect();
-        options.push(format!("{} Apply All Safe Tweaks", style("[A]").cyan().bold()));
-        options.push(format!("{} {} Back", style("[B]").yellow().bold(), icons::BACK));
+        let mut options: Vec<String> = tweaks
+            .iter()
+            .map(|t| {
+                let state = executor
+                    .detect_state(t)
+                    .unwrap_or(commands::optimize::common::TweakState::Unknown);
+                let state_indicator = match state {
+                    commands::optimize::common::TweakState::Applied => style("[ON]").green(),
+                    commands::optimize::common::TweakState::NotApplied => style("[OFF]").dim(),
+                    commands::optimize::common::TweakState::PartiallyApplied => {
+                        style("[PARTIAL]").yellow()
+                    }
+                    commands::optimize::common::TweakState::Unknown => style("[?]").red(),
+                };
+                let risk_indicator = match t.risk {
+                    commands::optimize::common::TweakRisk::Safe => style("[Safe]").green(),
+                    commands::optimize::common::TweakRisk::Moderate => style("[Mod]").yellow(),
+                    commands::optimize::common::TweakRisk::Risky => style("[Risk]").red(),
+                    commands::optimize::common::TweakRisk::Dangerous => {
+                        style("[DANGER]").red().bold()
+                    }
+                };
+                format!(
+                    "{} {} {} - {}",
+                    state_indicator,
+                    risk_indicator,
+                    t.name,
+                    style(&t.description).dim()
+                )
+            })
+            .collect();
+        options.push(format!(
+            "{} Apply All Safe Tweaks",
+            style("[A]").cyan().bold()
+        ));
+        options.push(format!(
+            "{} {} Back",
+            style("[B]").yellow().bold(),
+            icons::BACK
+        ));
 
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("Select a tweak to toggle (Esc to go back)")
@@ -863,15 +1378,25 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
         match selection {
             Some(idx) if idx < tweaks.len() => {
                 let tweak = tweaks[idx];
-                let state = executor.detect_state(tweak).unwrap_or(commands::optimize::common::TweakState::Unknown);
+                let state = executor
+                    .detect_state(tweak)
+                    .unwrap_or(commands::optimize::common::TweakState::Unknown);
 
                 term.clear_screen()?;
                 theme::print_command_banner(&tweak.name, icon, &tweak.description);
 
                 // Show tweak details
                 println!("  {} Risk Level: {}", style(icons::INFO).cyan(), tweak.risk);
-                println!("  {} Requires Admin: {}", style(icons::INFO).cyan(), if tweak.needs_admin() { "Yes" } else { "No" });
-                println!("  {} Requires Restart: {}", style(icons::INFO).cyan(), if tweak.requires_restart { "Yes" } else { "No" });
+                println!(
+                    "  {} Requires Admin: {}",
+                    style(icons::INFO).cyan(),
+                    if tweak.needs_admin() { "Yes" } else { "No" }
+                );
+                println!(
+                    "  {} Requires Restart: {}",
+                    style(icons::INFO).cyan(),
+                    if tweak.requires_restart { "Yes" } else { "No" }
+                );
                 println!("  {} Current State: {}", style(icons::INFO).cyan(), state);
                 println!();
 
@@ -881,19 +1406,35 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
                     "Apply"
                 };
 
-                let proceed = dialoguer::Confirm::new()
-                    .with_prompt(&format!("{} this tweak?", action))
-                    .default(false)
-                    .interact()?;
+                let settings = crate::config::WinMoleConfig::load()
+                    .unwrap_or_default()
+                    .settings;
+                let proceed = if tweak.risk == commands::optimize::common::TweakRisk::Dangerous
+                    && settings.confirm_dangerous
+                {
+                    let confirmation = Input::<String>::new()
+                        .with_prompt(format!(
+                            "Dangerous tweak: type {} to confirm",
+                            action.to_uppercase()
+                        ))
+                        .interact_text()?;
+                    confirmation == action.to_uppercase()
+                } else {
+                    dialoguer::Confirm::new()
+                        .with_prompt(format!("{} this tweak?", action))
+                        .default(false)
+                        .interact()?
+                };
 
                 if proceed {
                     if tweak.needs_admin() && !commands::optimize::is_elevated() {
                         theme::print_warning("This tweak requires administrator privileges.");
                         theme::print_info("Please restart WinMole as Administrator.");
                     } else {
-                        commands::optimize::maybe_create_restore_point(
-                            &format!("WinMole: {} tweak '{}'", action, tweak.name)
-                        );
+                        commands::optimize::maybe_create_restore_point(&format!(
+                            "WinMole: {} tweak '{}'",
+                            action, tweak.name
+                        ));
 
                         let result = if state == commands::optimize::common::TweakState::Applied {
                             executor.revert(tweak)
@@ -908,10 +1449,23 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
                                 } else {
                                     commands::optimize::record_tweak_applied(&tweak.id, &r);
                                 }
-                                theme::print_success(&format!("Tweak {} successfully!", action.to_lowercase()));
+                                if r.verified == Some(true) {
+                                    theme::print_success(&format!(
+                                        "Tweak {} and verified!",
+                                        action.to_lowercase()
+                                    ));
+                                } else {
+                                    theme::print_warning(&format!(
+                                        "Tweak {} command completed, but its state could not be verified.",
+                                        action.to_lowercase()
+                                    ));
+                                }
                             }
                             Ok(r) => {
-                                theme::print_error(&format!("Tweak {} failed", action.to_lowercase()));
+                                theme::print_error(&format!(
+                                    "Tweak {} failed",
+                                    action.to_lowercase()
+                                ));
                                 if let Some(err) = r.error {
                                     println!("    {}", style(err).red().dim());
                                 }
@@ -932,27 +1486,41 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
 
                 if !commands::optimize::is_elevated() {
                     theme::print_warning("Some tweaks require administrator privileges.");
-                    theme::print_info("Please restart WinMole as Administrator for full functionality.");
+                    theme::print_info(
+                        "Please restart WinMole as Administrator for full functionality.",
+                    );
                     wait_for_enter()?;
                     continue;
                 }
 
-                let safe_tweaks: Vec<_> = tweaks.iter()
+                let safe_tweaks: Vec<_> = tweaks
+                    .iter()
                     .filter(|t| t.risk == commands::optimize::common::TweakRisk::Safe)
                     .collect();
 
-                commands::optimize::maybe_create_restore_point(
-                    &format!("WinMole: Apply all safe {} tweaks", category)
-                );
+                commands::optimize::maybe_create_restore_point(&format!(
+                    "WinMole: Apply all safe {} tweaks",
+                    category
+                ));
 
                 let mut success_count = 0;
+                let mut unverified_count = 0;
                 let mut fail_count = 0;
 
                 for tweak in safe_tweaks {
-                    print!("  {} Applying {}... ", style(icons::PROGRESS).cyan(), tweak.name);
+                    print!(
+                        "  {} Applying {}... ",
+                        style(icons::PROGRESS).cyan(),
+                        tweak.name
+                    );
                     match executor.apply(tweak) {
                         Ok(r) if r.success => {
-                            println!("{}", style("OK").green());
+                            if r.verified == Some(true) {
+                                println!("{}", style("OK").green());
+                            } else {
+                                println!("{}", style("OK (UNVERIFIED)").yellow());
+                                unverified_count += 1;
+                            }
                             commands::optimize::record_tweak_applied(&tweak.id, &r);
                             success_count += 1;
                         }
@@ -968,6 +1536,7 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
                     "SAFE TWEAKS APPLIED",
                     &[
                         ("Successful", success_count.to_string()),
+                        ("Unverified", unverified_count.to_string()),
                         ("Failed", fail_count.to_string()),
                     ],
                     &[],
@@ -984,11 +1553,15 @@ fn run_category_menu(term: &Term, title: &str, icon: &str, category: &str) -> Re
 
 /// Run the tweak history submenu (view/revert applied tweaks)
 fn run_tweak_history_menu(term: &Term) -> Result<()> {
-    use commands::optimize::{TweakRegistry, TweakExecutor};
+    use commands::optimize::{TweakExecutor, TweakRegistry};
 
     loop {
         term.clear_screen()?;
-        theme::print_command_banner("Tweak History", icons::INFO, "View and revert applied tweaks");
+        theme::print_command_banner(
+            "Tweak History",
+            icons::INFO,
+            "View and revert applied tweaks",
+        );
         theme::print_breadcrumb(&["Main Menu", "Performance", "Tweak History"]);
 
         let config = crate::config::WinMoleConfig::load().unwrap_or_default();
@@ -1004,26 +1577,46 @@ fn run_tweak_history_menu(term: &Term) -> Result<()> {
 
         // Display table of applied tweaks
         let registry = TweakRegistry::new();
-        let rows: Vec<Vec<String>> = applied.iter().map(|at| {
-            let name = registry.get(&at.tweak_id)
-                .map(|t| t.name.clone())
-                .unwrap_or_else(|| format!("{} (unknown)", at.tweak_id));
-            let time = at.applied_at.format("%Y-%m-%d %H:%M").to_string();
-            let has_backup = if at.backup_data.is_some() { "Yes" } else { "No" };
-            vec![name, time, has_backup.to_string()]
-        }).collect();
+        let rows: Vec<Vec<String>> = applied
+            .iter()
+            .map(|at| {
+                let name = registry
+                    .get(&at.tweak_id)
+                    .map(|t| t.name.clone())
+                    .unwrap_or_else(|| format!("{} (unknown)", at.tweak_id));
+                let time = at.applied_at.format("%Y-%m-%d %H:%M").to_string();
+                let has_action_log = if at.action_log.is_some() { "Yes" } else { "No" };
+                vec![name, time, has_action_log.to_string()]
+            })
+            .collect();
 
-        theme::print_table(&["Tweak", "Applied At", "Has Backup"], &rows);
+        theme::print_table(&["Tweak", "Applied At", "Action Log"], &rows);
         println!();
 
-        let mut options: Vec<String> = applied.iter().enumerate().map(|(i, at)| {
-            let name = registry.get(&at.tweak_id)
-                .map(|t| t.name.clone())
-                .unwrap_or_else(|| at.tweak_id.clone());
-            format!("{} Revert: {}", style(format!("[{}]", i + 1)).cyan().bold(), name)
-        }).collect();
-        options.push(format!("{} Revert All Applied Tweaks", style("[R]").red().bold()));
-        options.push(format!("{} {} Back", style("[B]").yellow().bold(), icons::BACK));
+        let mut options: Vec<String> = applied
+            .iter()
+            .enumerate()
+            .map(|(i, at)| {
+                let name = registry
+                    .get(&at.tweak_id)
+                    .map(|t| t.name.clone())
+                    .unwrap_or_else(|| at.tweak_id.clone());
+                format!(
+                    "{} Revert: {}",
+                    style(format!("[{}]", i + 1)).cyan().bold(),
+                    name
+                )
+            })
+            .collect();
+        options.push(format!(
+            "{} Revert All Applied Tweaks",
+            style("[R]").red().bold()
+        ));
+        options.push(format!(
+            "{} {} Back",
+            style("[B]").yellow().bold(),
+            icons::BACK
+        ));
 
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("Select action (Esc to go back)")
@@ -1035,12 +1628,13 @@ fn run_tweak_history_menu(term: &Term) -> Result<()> {
             Some(idx) if idx < applied.len() => {
                 // Revert individual tweak
                 let tweak_id = applied[idx].tweak_id.clone();
-                let tweak_name = registry.get(&tweak_id)
+                let tweak_name = registry
+                    .get(&tweak_id)
                     .map(|t| t.name.clone())
                     .unwrap_or_else(|| tweak_id.clone());
 
                 let proceed = dialoguer::Confirm::new()
-                    .with_prompt(&format!("Revert '{}'?", tweak_name))
+                    .with_prompt(format!("Revert '{}'?", tweak_name))
                     .default(false)
                     .interact()?;
 
@@ -1050,7 +1644,17 @@ fn run_tweak_history_menu(term: &Term) -> Result<()> {
                         match executor.revert(tweak) {
                             Ok(r) if r.success => {
                                 commands::optimize::record_tweak_reverted(&tweak_id);
-                                theme::print_success(&format!("'{}' reverted successfully!", tweak_name));
+                                if r.verified == Some(true) {
+                                    theme::print_success(&format!(
+                                        "'{}' reverted and verified!",
+                                        tweak_name
+                                    ));
+                                } else {
+                                    theme::print_warning(&format!(
+                                        "'{}' revert command completed, but its state could not be verified.",
+                                        tweak_name
+                                    ));
+                                }
                             }
                             Ok(r) => {
                                 theme::print_error(&format!("Revert failed for '{}'", tweak_name));
@@ -1059,7 +1663,10 @@ fn run_tweak_history_menu(term: &Term) -> Result<()> {
                                 }
                             }
                             Err(e) => {
-                                theme::print_error(&format!("Error reverting '{}': {}", tweak_name, e));
+                                theme::print_error(&format!(
+                                    "Error reverting '{}': {}",
+                                    tweak_name, e
+                                ));
                             }
                         }
                     } else {
@@ -1077,7 +1684,7 @@ fn run_tweak_history_menu(term: &Term) -> Result<()> {
             Some(idx) if idx == applied.len() => {
                 // Revert all
                 let proceed = dialoguer::Confirm::new()
-                    .with_prompt(&format!("Revert all {} applied tweaks?", applied.len()))
+                    .with_prompt(format!("Revert all {} applied tweaks?", applied.len()))
                     .default(false)
                     .interact()?;
 
@@ -1085,16 +1692,27 @@ fn run_tweak_history_menu(term: &Term) -> Result<()> {
                     commands::optimize::maybe_create_restore_point("WinMole: Revert all tweaks");
 
                     let executor = TweakExecutor::new(false);
-                    let tweak_ids: Vec<String> = applied.iter().map(|at| at.tweak_id.clone()).collect();
+                    let tweak_ids: Vec<String> =
+                        applied.iter().map(|at| at.tweak_id.clone()).collect();
                     let mut success_count = 0;
+                    let mut unverified_count = 0;
                     let mut fail_count = 0;
 
                     for tweak_id in &tweak_ids {
                         if let Some(tweak) = registry.get(tweak_id) {
-                            print!("  {} Reverting {}... ", style(icons::PROGRESS).cyan(), tweak.name);
+                            print!(
+                                "  {} Reverting {}... ",
+                                style(icons::PROGRESS).cyan(),
+                                tweak.name
+                            );
                             match executor.revert(tweak) {
                                 Ok(r) if r.success => {
-                                    println!("{}", style("OK").green());
+                                    if r.verified == Some(true) {
+                                        println!("{}", style("OK").green());
+                                    } else {
+                                        println!("{}", style("OK (UNVERIFIED)").yellow());
+                                        unverified_count += 1;
+                                    }
                                     commands::optimize::record_tweak_reverted(tweak_id);
                                     success_count += 1;
                                 }
@@ -1104,8 +1722,11 @@ fn run_tweak_history_menu(term: &Term) -> Result<()> {
                                 }
                             }
                         } else {
-                            println!("  {} '{}' not in registry, removing record",
-                                style(icons::WARNING).yellow(), tweak_id);
+                            println!(
+                                "  {} '{}' not in registry, removing record",
+                                style(icons::WARNING).yellow(),
+                                tweak_id
+                            );
                             commands::optimize::record_tweak_reverted(tweak_id);
                         }
                     }
@@ -1115,6 +1736,7 @@ fn run_tweak_history_menu(term: &Term) -> Result<()> {
                         "ALL TWEAKS REVERTED",
                         &[
                             ("Successful", success_count.to_string()),
+                            ("Unverified", unverified_count.to_string()),
                             ("Failed", fail_count.to_string()),
                         ],
                         &[],
@@ -1137,16 +1759,31 @@ fn run_debloat_menu(term: &Term) -> Result<()> {
         theme::print_breadcrumb(&["Main Menu", "Performance", "Debloat"]);
 
         let options = vec![
-            format!("{} {} Scan for Bloatware     - Find removable apps",
-                style("[1]").cyan().bold(), icons::DIAGNOSE),
-            format!("{} {} List Installed Apps    - Show all AppX packages",
-                style("[2]").cyan().bold(), icons::BULLET),
-            format!("{} {} Remove Safe Apps       - Remove all safe bloatware",
-                style("[3]").cyan().bold(), icons::CLEANUP),
-            format!("{} {} Remove Specific App    - Choose apps to remove",
-                style("[4]").cyan().bold(), icons::ERROR),
-            format!("{} {} Back to Performance Menu",
-                style("[B]").yellow().bold(), icons::BACK),
+            format!(
+                "{} {} Scan for Bloatware     - Find removable apps",
+                style("[1]").cyan().bold(),
+                icons::DIAGNOSE
+            ),
+            format!(
+                "{} {} List Installed Apps    - Show all AppX packages",
+                style("[2]").cyan().bold(),
+                icons::BULLET
+            ),
+            format!(
+                "{} {} Remove Safe Apps       - Remove all safe bloatware",
+                style("[3]").cyan().bold(),
+                icons::CLEANUP
+            ),
+            format!(
+                "{} {} Remove Specific App    - Choose apps to remove",
+                style("[4]").cyan().bold(),
+                icons::ERROR
+            ),
+            format!(
+                "{} {} Back to Performance Menu",
+                style("[B]").yellow().bold(),
+                icons::BACK
+            ),
         ];
 
         let selection = Select::with_theme(&ColorfulTheme::default())
@@ -1161,18 +1798,32 @@ fn run_debloat_menu(term: &Term) -> Result<()> {
                 term.clear_screen()?;
                 match action_idx {
                     0 => {
-                        theme::print_command_banner("Scan for Bloatware", icons::DIAGNOSE, "Finding removable apps...");
+                        theme::print_command_banner(
+                            "Scan for Bloatware",
+                            icons::DIAGNOSE,
+                            "Finding removable apps...",
+                        );
                         commands::optimize::debloat::run("scan", None, false)?;
                     }
                     1 => {
-                        theme::print_command_banner("Installed Apps", icons::BULLET, "All AppX packages");
+                        theme::print_command_banner(
+                            "Installed Apps",
+                            icons::BULLET,
+                            "All AppX packages",
+                        );
                         commands::optimize::debloat::run("list", None, false)?;
                     }
                     2 => {
-                        theme::print_command_banner("Remove Safe Apps", icons::CLEANUP, "Removing safe bloatware");
+                        theme::print_command_banner(
+                            "Remove Safe Apps",
+                            icons::CLEANUP,
+                            "Removing safe bloatware",
+                        );
 
                         if !commands::optimize::is_elevated() {
-                            theme::print_warning("Removing apps requires administrator privileges.");
+                            theme::print_warning(
+                                "Removing apps requires administrator privileges.",
+                            );
                             theme::print_info("Please restart WinMole as Administrator.");
                             wait_for_enter()?;
                             continue;
@@ -1193,7 +1844,11 @@ fn run_debloat_menu(term: &Term) -> Result<()> {
                         }
                     }
                     3 => {
-                        theme::print_command_banner("Remove Specific App", icons::ERROR, "Select app to remove");
+                        theme::print_command_banner(
+                            "Remove Specific App",
+                            icons::ERROR,
+                            "Select app to remove",
+                        );
 
                         let app_name: String = dialoguer::Input::new()
                             .with_prompt("Enter app name (or partial match)")
@@ -1201,7 +1856,9 @@ fn run_debloat_menu(term: &Term) -> Result<()> {
 
                         if !app_name.is_empty() {
                             if !commands::optimize::is_elevated() {
-                                theme::print_warning("Removing apps requires administrator privileges.");
+                                theme::print_warning(
+                                    "Removing apps requires administrator privileges.",
+                                );
                                 theme::print_info("Please restart WinMole as Administrator.");
                             } else {
                                 commands::optimize::debloat::run("remove", Some(&app_name), false)?;
@@ -1223,7 +1880,8 @@ pub fn wait_for_enter() -> Result<()> {
     println!();
     print_menu_footer();
     println!();
-    println!("  {} Press {} to continue...",
+    println!(
+        "  {} Press {} to continue...",
         style(icons::PROMPT).cyan(),
         style("Enter").white().bold()
     );
