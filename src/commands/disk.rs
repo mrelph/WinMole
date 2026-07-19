@@ -38,6 +38,30 @@ pub fn run(path: &str, mode: &str, depth: usize, top: usize, json: bool) -> Resu
     Ok(())
 }
 
+/// Scan immediate child folders for the dashboard without printing progress.
+pub fn scan_largest_folders(path: &Path, top: usize) -> Vec<(PathBuf, u64)> {
+    let mut folders = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            if !entry_path.is_dir() {
+                continue;
+            }
+            let name = entry_path.file_name().unwrap_or_default().to_string_lossy();
+            if should_skip_dir(&name) {
+                continue;
+            }
+            folders.push((
+                entry_path.clone(),
+                calculate_dir_size_fast(&entry_path, 50_000),
+            ));
+        }
+    }
+    folders.sort_by(|left, right| right.1.cmp(&left.1));
+    folders.truncate(top);
+    folders
+}
+
 fn run_json(path: &PathBuf, mode: &str, top_n: usize) -> Result<()> {
     let output = match mode {
         "largest-files" | "largestfiles" => {

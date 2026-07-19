@@ -1,6 +1,6 @@
 [package]
 name = "winmole"
-version = "2.1.0"
+version = "2.2.0"
 edition = "2021"
 authors = ["WinMole Contributors"]
 description = "Windows System Optimization CLI - Clean, analyze, and optimize your Windows system"
@@ -54,6 +54,8 @@ sysinfo = "0.31"
 indicatif = "0.17"
 console = "0.15"
 dialoguer = "0.11"
+crossterm = "0.29"
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm_0_29"] }
 fs2 = "0.4"
 lazy_static = "1.4"
 regex = "1.10"

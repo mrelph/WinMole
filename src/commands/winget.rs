@@ -3,14 +3,12 @@ use console::style;
 use dialoguer::{theme::ColorfulTheme, MultiSelect, Select};
 use std::process::Command;
 
-use crate::commands::{print_success, print_warning, print_error, print_progress};
+use crate::commands::{print_error, print_progress, print_success, print_warning};
 use crate::ui::theme::{self, icons};
 
 pub fn run(action: &str, package: Option<&str>, all: bool) -> Result<()> {
     // Check if winget is available
-    let winget_check = Command::new("winget")
-        .arg("--version")
-        .output();
+    let winget_check = Command::new("winget").arg("--version").output();
 
     if winget_check.is_err() {
         print_error("winget is not installed or not in PATH");
@@ -134,7 +132,10 @@ fn audit_packages() -> Result<()> {
     if upgradable > 0 {
         print_warning(&format!("{} packages have updates available", upgradable));
         println!();
-        println!("  Run {} to update all packages", style("winmole winget update --all").cyan());
+        println!(
+            "  Run {} to update all packages",
+            style("winmole winget update --all").cyan()
+        );
     } else {
         print_success("All packages are up to date!");
     }
@@ -148,7 +149,12 @@ fn update_packages(package: Option<&str>, all: bool) -> Result<()> {
         println!();
 
         let status = Command::new("winget")
-            .args(["upgrade", "--all", "--accept-source-agreements", "--accept-package-agreements"])
+            .args([
+                "upgrade",
+                "--all",
+                "--accept-source-agreements",
+                "--accept-package-agreements",
+            ])
             .status()?;
 
         if status.success() {
@@ -161,7 +167,12 @@ fn update_packages(package: Option<&str>, all: bool) -> Result<()> {
         println!();
 
         let status = Command::new("winget")
-            .args(["upgrade", pkg, "--accept-source-agreements", "--accept-package-agreements"])
+            .args([
+                "upgrade",
+                pkg,
+                "--accept-source-agreements",
+                "--accept-package-agreements",
+            ])
             .status()?;
 
         if status.success() {
@@ -178,10 +189,14 @@ fn update_packages(package: Option<&str>, all: bool) -> Result<()> {
             return Ok(());
         }
 
-        println!("  {} packages have updates available", style(upgradable.len()).yellow());
+        println!(
+            "  {} packages have updates available",
+            style(upgradable.len()).yellow()
+        );
         println!();
 
-        let display_items: Vec<String> = upgradable.iter()
+        let display_items: Vec<String> = upgradable
+            .iter()
             .map(|(name, id, current, available)| {
                 format!("{} ({}) {} → {}", name, id, current, available)
             })
@@ -204,7 +219,12 @@ fn update_packages(package: Option<&str>, all: bool) -> Result<()> {
                 print_progress(&format!("Updating {} ({})...", name, id));
 
                 let status = Command::new("winget")
-                    .args(["upgrade", id, "--accept-source-agreements", "--accept-package-agreements"])
+                    .args([
+                        "upgrade",
+                        id,
+                        "--accept-source-agreements",
+                        "--accept-package-agreements",
+                    ])
                     .output()?;
 
                 if status.status.success() {
@@ -283,7 +303,12 @@ fn install_package(package: Option<&str>) -> Result<()> {
     println!();
 
     let status = Command::new("winget")
-        .args(["install", package, "--accept-source-agreements", "--accept-package-agreements"])
+        .args([
+            "install",
+            package,
+            "--accept-source-agreements",
+            "--accept-package-agreements",
+        ])
         .status()?;
 
     if status.success() {
@@ -300,9 +325,7 @@ fn uninstall_package(package: Option<&str>) -> Result<()> {
         print_progress(&format!("Uninstalling {}...", pkg));
         println!();
 
-        let status = Command::new("winget")
-            .args(["uninstall", pkg])
-            .status()?;
+        let status = Command::new("winget").args(["uninstall", pkg]).status()?;
 
         if status.success() {
             print_success(&format!("{} uninstalled successfully", pkg));
@@ -321,10 +344,9 @@ fn uninstall_package(package: Option<&str>) -> Result<()> {
         println!("  {} packages installed", style(packages.len()).cyan());
         println!();
 
-        let display_items: Vec<String> = packages.iter()
-            .map(|(name, id, version)| {
-                format!("{} ({}) v{}", name, id, version)
-            })
+        let display_items: Vec<String> = packages
+            .iter()
+            .map(|(name, id, version)| format!("{} ({}) v{}", name, id, version))
             .collect();
 
         let selection = Select::with_theme(&ColorfulTheme::default())
@@ -337,7 +359,8 @@ fn uninstall_package(package: Option<&str>) -> Result<()> {
             let (name, id, _) = &packages[idx];
 
             println!();
-            println!("  {} Are you sure you want to uninstall {} ({})?",
+            println!(
+                "  {} Are you sure you want to uninstall {} ({})?",
                 style(icons::WARNING).yellow(),
                 style(name).white().bold(),
                 id
@@ -353,9 +376,7 @@ fn uninstall_package(package: Option<&str>) -> Result<()> {
                 println!();
                 print_progress(&format!("Uninstalling {}...", name));
 
-                let status = Command::new("winget")
-                    .args(["uninstall", id])
-                    .status()?;
+                let status = Command::new("winget").args(["uninstall", id]).status()?;
 
                 if status.success() {
                     print_success(&format!("{} uninstalled successfully", name));
@@ -376,12 +397,20 @@ fn uninstall_package(package: Option<&str>) -> Result<()> {
 fn export_packages() -> Result<()> {
     let export_path = dirs::desktop_dir()
         .unwrap_or_else(|| std::env::current_dir().unwrap())
-        .join(format!("winmole-packages-{}.json", chrono::Local::now().format("%Y%m%d")));
+        .join(format!(
+            "winmole-packages-{}.json",
+            chrono::Local::now().format("%Y%m%d")
+        ));
 
     print_progress(&format!("Exporting to {}...", export_path.display()));
 
     let status = Command::new("winget")
-        .args(["export", "-o", &export_path.to_string_lossy(), "--accept-source-agreements"])
+        .args([
+            "export",
+            "-o",
+            &export_path.to_string_lossy(),
+            "--accept-source-agreements",
+        ])
         .status()?;
 
     if status.success() {
@@ -417,7 +446,13 @@ fn safe_slice(s: &str, start: usize, end: usize) -> String {
 /// Returns: Vec<(name, id, current_version, available_version)>
 fn get_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
     print_progress("Checking for updates...");
+    let packages = scan_upgradable_packages();
+    println!("\r                                    \r"); // Clear progress line
+    packages
+}
 
+/// Get available package updates without writing progress to the terminal.
+pub fn scan_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
     let output = Command::new("winget")
         .args(["upgrade", "--accept-source-agreements"])
         .output()?;
@@ -432,7 +467,11 @@ fn get_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
 
     for line in stdout.lines() {
         // Find header line to get column positions
-        if line.contains("Name") && line.contains("Id") && line.contains("Version") && line.contains("Available") {
+        if line.contains("Name")
+            && line.contains("Id")
+            && line.contains("Version")
+            && line.contains("Available")
+        {
             in_table = true;
             // Find column positions
             if let Some(pos) = line.find("Id") {
@@ -451,7 +490,11 @@ fn get_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
             continue;
         }
 
-        if in_table && !line.trim().is_empty() && !line.contains("upgrades available") && line.len() > version_end {
+        if in_table
+            && !line.trim().is_empty()
+            && !line.contains("upgrades available")
+            && line.len() > version_end
+        {
             // Parse columns based on positions
             let name = safe_slice(line, 0, name_end);
             let id = if id_end > name_end {
@@ -464,7 +507,11 @@ fn get_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
             } else {
                 continue;
             };
-            let available = safe_slice(line, version_end, line.len()).split_whitespace().next().unwrap_or("").to_string();
+            let available = safe_slice(line, version_end, line.len())
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .to_string();
 
             if !name.is_empty() && !id.is_empty() && !available.is_empty() {
                 packages.push((name, id, version, available));
@@ -472,8 +519,31 @@ fn get_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
         }
     }
 
-    println!("\r                                    \r"); // Clear progress line
     Ok(packages)
+}
+
+/// Upgrade a single package without writing into an active full-screen TUI.
+pub fn upgrade_package_quiet(package_id: &str) -> Result<()> {
+    let output = Command::new("winget")
+        .args([
+            "upgrade",
+            "--id",
+            package_id,
+            "--exact",
+            "--accept-source-agreements",
+            "--accept-package-agreements",
+            "--disable-interactivity",
+        ])
+        .output()?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "winget failed for {}: {}",
+            package_id,
+            String::from_utf8_lossy(&output.stderr).trim()
+        )
+    }
 }
 
 /// Get list of installed packages
@@ -516,7 +586,11 @@ fn get_installed_packages() -> Result<Vec<(String, String, String)>> {
             } else {
                 continue;
             };
-            let version = safe_slice(line, id_end, line.len()).split_whitespace().next().unwrap_or("").to_string();
+            let version = safe_slice(line, id_end, line.len())
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .to_string();
 
             if !name.is_empty() && !id.is_empty() {
                 packages.push((name, id, version));
