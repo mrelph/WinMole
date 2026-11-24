@@ -184,7 +184,9 @@ fn collect_report() -> Result<DoctorReport> {
 }
 
 fn read_installed_build(path: &Path) -> Option<InstalledBuild> {
-    let output = std::process::Command::new(path)
+    use crate::commands::subprocess::quiet_command;
+
+    let output = quiet_command(path.to_str()?)
         .args(["--json", "doctor"])
         .env("WINMOLE_DOCTOR_CHILD", "1")
         .output()
@@ -218,7 +220,7 @@ fn paths_match(left: &Path, right: &Path) -> bool {
 
 #[cfg(windows)]
 fn path_executables() -> Vec<PathBuf> {
-    let output = match std::process::Command::new("where.exe")
+    let output = match crate::commands::subprocess::quiet_command("where.exe")
         .arg("winmole")
         .output()
     {

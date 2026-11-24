@@ -120,9 +120,9 @@ fn scan_wer(issues: &mut Vec<Issue>) {
 fn scan_winsxs(issues: &mut Vec<Issue>) {
     #[cfg(windows)]
     {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
         // Check if component cleanup would free space
-        let output = Command::new("powershell")
+        let output = quiet_command("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",
@@ -175,8 +175,8 @@ fn scan_winsxs(issues: &mut Vec<Issue>) {
 fn scan_recycle_bin(issues: &mut Vec<Issue>) {
     #[cfg(windows)]
     {
-        use std::process::Command;
-        let output = Command::new("powershell")
+        use crate::commands::subprocess::quiet_command;
+        let output = quiet_command("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",
@@ -396,8 +396,8 @@ fn scan_icon_cache(issues: &mut Vec<Issue>) {
 fn scan_event_logs(issues: &mut Vec<Issue>) {
     #[cfg(windows)]
     {
-        use std::process::Command;
-        let output = Command::new("powershell")
+        use crate::commands::subprocess::quiet_command;
+        let output = quiet_command("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",

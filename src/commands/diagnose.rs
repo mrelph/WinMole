@@ -185,8 +185,8 @@ fn analyze_processes() -> Result<()> {
                         let killed = {
                             #[cfg(windows)]
                             {
-                                use std::process::Command;
-                                Command::new("taskkill")
+                                use crate::commands::subprocess::quiet_command;
+                                quiet_command("taskkill")
                                     .args(["/PID", &proc.pid.to_string(), "/F"])
                                     .output()
                                     .map(|o| o.status.success())
@@ -328,12 +328,12 @@ fn analyze_memory() -> Result<()> {
 
 #[cfg(windows)]
 fn analyze_services() -> Result<()> {
-    use std::process::Command;
+    use crate::commands::subprocess::quiet_command;
 
     theme::print_section_header("Service Analysis");
 
     // Get services that are set to auto-start but are stopped
-    let output = Command::new("powershell")
+    let output = quiet_command("powershell")
         .args(["-Command", r#"
             Get-Service | Where-Object {$_.StartType -eq 'Automatic' -and $_.Status -eq 'Stopped'} |
             Select-Object -Property Name, DisplayName, Status |
@@ -423,7 +423,7 @@ fn analyze_services() -> Result<()> {
                         let (name, _) = &services[idx];
                         print!("  {} Starting {}... ", style(icons::PROGRESS).cyan(), name);
 
-                        let result = Command::new("powershell")
+                        let result = quiet_command("powershell")
                             .args(["-Command", &format!(
                                 "Start-Service -Name '{}'",
                                 name.replace('\'', "''")
@@ -448,7 +448,7 @@ fn analyze_services() -> Result<()> {
     println!();
     print!("  {} Checking service resource usage... ", style(icons::PROGRESS).cyan());
 
-    let svc_output = Command::new("powershell")
+    let svc_output = quiet_command("powershell")
         .args(["-Command", r#"
             Get-Process -IncludeUserName 2>$null |
             Where-Object { $_.CPU -gt 30 -or $_.WorkingSet64 -gt 500MB } |

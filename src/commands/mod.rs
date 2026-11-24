@@ -11,6 +11,7 @@ pub mod registry;
 pub mod self_update;
 pub mod startup;
 pub mod status;
+pub mod subprocess;
 pub mod updates;
 pub mod winget;
 

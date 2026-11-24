@@ -165,13 +165,15 @@ pub fn effects(
 
 #[cfg(windows)]
 fn restart_service(service: &str) -> Result<()> {
-    let stop = std::process::Command::new("sc.exe")
+    use crate::commands::subprocess::quiet_command;
+
+    let stop = quiet_command("sc.exe")
         .args(["stop", service])
         .status()?;
     if !stop.success() {
         return Err(anyhow!("Could not stop service '{service}'"));
     }
-    let start = std::process::Command::new("sc.exe")
+    let start = quiet_command("sc.exe")
         .args(["start", service])
         .status()?;
     if !start.success() {
@@ -187,13 +189,15 @@ fn restart_service(_service: &str) -> Result<()> {
 
 #[cfg(windows)]
 fn restart_explorer() -> Result<()> {
-    let stopped = std::process::Command::new("taskkill.exe")
+    use crate::commands::subprocess::quiet_command;
+
+    let stopped = quiet_command("taskkill.exe")
         .args(["/F", "/IM", "explorer.exe"])
         .status()?;
     if !stopped.success() {
         return Err(anyhow!("Could not stop Windows Explorer"));
     }
-    std::process::Command::new("explorer.exe").spawn()?;
+    quiet_command("explorer.exe").spawn()?;
     Ok(())
 }
 

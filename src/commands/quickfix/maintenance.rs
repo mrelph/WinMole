@@ -156,8 +156,8 @@ fn scan_winsock(issues: &mut Vec<Issue>) {
 fn scan_sfc(issues: &mut Vec<Issue>) {
     #[cfg(windows)]
     {
-        use std::process::Command;
-        let output = Command::new("sfc")
+        use crate::commands::subprocess::quiet_command;
+        let output = quiet_command("sfc")
             .args(["/verifyonly"])
             .output();
 
@@ -198,8 +198,8 @@ fn scan_sfc(issues: &mut Vec<Issue>) {
 fn scan_dism(issues: &mut Vec<Issue>) {
     #[cfg(windows)]
     {
-        use std::process::Command;
-        let output = Command::new("DISM")
+        use crate::commands::subprocess::quiet_command;
+        let output = quiet_command("DISM")
             .args(["/Online", "/Cleanup-Image", "/CheckHealth"])
             .output();
 
@@ -243,9 +243,9 @@ fn scan_dism(issues: &mut Vec<Issue>) {
 fn scan_search_index(issues: &mut Vec<Issue>) {
     #[cfg(windows)]
     {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
         // Check if the search index is large
-        let output = Command::new("powershell")
+        let output = quiet_command("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",
