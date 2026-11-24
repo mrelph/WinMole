@@ -54,7 +54,10 @@ fn primary(label: SharedString, on_press: impl Fn() + 'static) -> nsh_core::elem
 }
 
 /// A secondary (muted) pill button.
-fn secondary(label: SharedString, on_press: impl Fn() + 'static) -> nsh_core::element::View {
+fn secondary(
+    label: impl IntoReactive<SharedString>,
+    on_press: impl Fn() + 'static,
+) -> nsh_core::element::View {
     view()
         .items_center()
         .justify_center()
@@ -260,6 +263,7 @@ pub fn WinMoleApp() -> impl IntoElement {
         .w_full()
         .bg(move || theme().background)
         .text_color(move || theme().foreground)
+        .font_family("Segoe UI, Microsoft YaHei UI")
         .child(sidebar(Rc::clone(&ctx)))
         .child(main_pane(Rc::clone(&ctx)))
         .child(overlay_notice(Rc::clone(&ctx)))
@@ -349,16 +353,16 @@ fn sidebar(ctx: Rc<Ctx>) -> nsh_core::element::View {
         .children(buttons)
         .child(view().flex_1())
         .child(
-            secondary(lang_switch_label(), move || toggle_ctx.toggle_lang())
+            secondary(lang_switch_label, move || toggle_ctx.toggle_lang())
                 .items_center(),
         )
 }
 
-/// Label for the language-switch button (read once at build time).
+/// Reactive label for the language-switch button.
 fn lang_switch_label() -> SharedString {
     match i18n::lang().get() {
-        Lang::Zh => "English / 涓枃".into(),
-        Lang::En => "涓枃 / English".into(),
+        Lang::Zh => "English / 中文".into(),
+        Lang::En => "中文 / English".into(),
     }
 }
 
@@ -366,23 +370,24 @@ fn lang_switch_label() -> SharedString {
 fn main_pane(ctx: Rc<Ctx>) -> nsh_core::element::View {
     let active_sig = ctx.active;
     let module = move || active_sig.get();
-
-    let mut actions: Vec<AnyElement> = Vec::new();
-    {
-        let rescan_ctx = Rc::clone(&ctx);
+    let actions_ctx = Rc::clone(&ctx);
+    let actions = dynamic(move || {
+        let mut actions: Vec<AnyElement> = Vec::new();
+        let rescan_ctx = Rc::clone(&actions_ctx);
         actions.push(
             secondary(rescan_label(), move || rescan_ctx.scan_active(true)).into_element(),
         );
-    }
-    if show_apply(module()) {
-        let apply_ctx = Rc::clone(&ctx);
-        actions.push(primary(apply_label(), move || apply_ctx.commit_active()).into_element());
-    }
-    if module() == ModuleId::Cleanup || module() == ModuleId::Packages {
-        let sel_ctx = Rc::clone(&ctx);
+        if show_apply(module()) {
+            let apply_ctx = Rc::clone(&actions_ctx);
+            actions.push(primary(apply_label(), move || apply_ctx.commit_active()).into_element());
+        }
+        if module() == ModuleId::Cleanup || module() == ModuleId::Packages {
+            let sel_ctx = Rc::clone(&actions_ctx);
+            actions
+                .push(secondary(select_all_label(), move || sel_ctx.select_all_safe()).into_element());
+        }
         actions
-            .push(secondary(select_all_label(), move || sel_ctx.select_all_safe()).into_element());
-    }
+    });
 
     view()
         .flex_col()
@@ -401,7 +406,7 @@ fn main_pane(ctx: Rc<Ctx>) -> nsh_core::element::View {
                         .text_size(px(16.0))
                         .font_weight(FontWeight::BOLD),
                 )
-                .child(view().flex_row().gap(px(8.0)).children(actions)),
+                .child(view().flex_row().gap(px(8.0)).child(actions)),
         )
         .child(view().flex_1().w_full().child(module_screen(ctx)))
 }
@@ -438,15 +443,15 @@ fn show_apply(module: ModuleId) -> bool {
 // ------------------------------------------------------------- screens ----
 
 fn module_screen(ctx: Rc<Ctx>) -> AnyElement {
-    match ctx.active.get() {
-        ModuleId::Dashboard => dashboard(ctx).into_element(),
-        ModuleId::Cleanup => cleanup_screen(ctx).into_element(),
-        ModuleId::Disk => disk_screen(ctx).into_element(),
-        ModuleId::Startup => startup_screen(ctx).into_element(),
-        ModuleId::Packages => packages_screen(ctx).into_element(),
-        ModuleId::Registry => registry_screen(ctx).into_element(),
-        ModuleId::Optimize => optimize_screen(ctx).into_element(),
-    }
+    dynamic(move || match ctx.active.get() {
+        ModuleId::Dashboard => dashboard(Rc::clone(&ctx)).into_element(),
+        ModuleId::Cleanup => cleanup_screen(Rc::clone(&ctx)).into_element(),
+        ModuleId::Disk => disk_screen(Rc::clone(&ctx)).into_element(),
+        ModuleId::Startup => startup_screen(Rc::clone(&ctx)).into_element(),
+        ModuleId::Packages => packages_screen(Rc::clone(&ctx)).into_element(),
+        ModuleId::Registry => registry_screen(Rc::clone(&ctx)).into_element(),
+        ModuleId::Optimize => optimize_screen(Rc::clone(&ctx)).into_element(),
+    })
 }
 
 fn dashboard(ctx: Rc<Ctx>) -> nsh_core::element::View {
@@ -923,16 +928,14 @@ fn tweak_state_text(state: &TweakState) -> String {
 // --------------------------------------------------------- scroll helper ----
 
 /// Wrap a pre-built Vec of row views in a scroll view.
-fn scroll_rows(rows: Vec<nsh_core::element::View>) -> nsh_core::element::View {
-    view()
-        .flex_col()
+fn scroll_rows(rows: Vec<nsh_core::element::View>) -> nsh_core::element::Scroll {
+    scroll()
         .flex_1()
+        .min_h(px(0.0))
         .w_full()
-        .gap(px(6.0))
         .child(
             view()
                 .flex_col()
-                .flex_1()
                 .w_full()
                 .gap(px(6.0))
                 .children(rows),
@@ -970,6 +973,7 @@ fn overlay_confirm(ctx: Rc<Ctx>) -> nsh_core::element::View {
     view()
         .absolute()
         .inset_0()
+        .pointer_events(PointerEvents::BoxNone)
         .when(ctx.confirm_open.get(), |_| {
             let confirm_ctx = Rc::clone(&ctx);
             let confirm_ctx2 = Rc::clone(&ctx);

@@ -1,3 +1,5 @@
+#![cfg_attr(all(feature = "nsh-ui", windows), windows_subsystem = "windows")]
+
 mod commands;
 mod config;
 mod operations;
@@ -342,7 +344,26 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Handle interactive mode or no subcommand
+    // Interactive mode is always the ratatui TUI (kept alongside the NSH UI).
+    // With the nsh-ui feature on, a bare `winmole` opens the native desktop
+    // UI instead of the TUI; without it the TUI stays the default.
+    #[cfg(feature = "nsh-ui")]
+    if cli.interactive {
+        if cli.json {
+            anyhow::bail!("--json requires a subcommand (it cannot drive the interactive TUI)");
+        }
+        return ui::run_tui();
+    }
+    #[cfg(feature = "nsh-ui")]
+    if cli.command.is_none() {
+        if cli.json {
+            anyhow::bail!("--json requires a subcommand (it cannot drive the interactive UI)");
+        }
+        ui_nsh::run::show();
+        return Ok(());
+    }
+
+    #[cfg(not(feature = "nsh-ui"))]
     if cli.interactive || cli.command.is_none() {
         if cli.json {
             anyhow::bail!("--json requires a subcommand (it cannot drive the interactive TUI)");

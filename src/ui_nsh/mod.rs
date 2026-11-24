@@ -194,9 +194,11 @@ impl Ctx {
     /// Make a new context and start the initial scans (cleanup + startup).
     pub fn new() -> Self {
         let (worker_tx, worker_rx) = mpsc::channel();
+        let lang = i18n::lang();
+        lang.set(i18n::initial_lang());
         let ctx = Self {
             active: signal(ModuleId::Dashboard),
-            lang: signal(i18n::initial_lang()),
+            lang,
             confirm_open: signal(false),
             confirm_input: signal(String::new()),
             pending_changes: signal(Vec::new()),
