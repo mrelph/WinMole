@@ -4,6 +4,7 @@ use anyhow::Result;
 use sysinfo::System;
 
 /// Health score result
+#[derive(Clone, Debug, PartialEq)]
 pub struct HealthScore {
     pub score: u32,
     pub status: String,

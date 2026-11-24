@@ -5,6 +5,9 @@ mod scanner;
 mod system;
 mod ui;
 
+#[cfg(feature = "nsh-ui")]
+mod ui_nsh;
+
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
@@ -302,6 +305,10 @@ enum Commands {
         #[arg(short = 'n', long)]
         dry_run: bool,
     },
+
+    /// Open the native desktop UI (NSH; windows-only)
+    #[cfg(feature = "nsh-ui")]
+    Ui,
 }
 
 fn main() -> Result<()> {
@@ -325,6 +332,14 @@ fn main() -> Result<()> {
     // Handle quick scan
     if cli.quick {
         return commands::quick_scan();
+    }
+
+    // The native desktop UI is its own subcommand and blocks in the window's
+    // message loop until the user closes the window.
+    #[cfg(feature = "nsh-ui")]
+    if let Some(Commands::Ui) = cli.command {
+        ui_nsh::run::show();
+        return Ok(());
     }
 
     // Handle interactive mode or no subcommand
@@ -476,6 +491,13 @@ fn main() -> Result<()> {
         } => commands::quickfix::run(&action, category.as_deref(), dry_run),
 
         Commands::SelfUpdate { check } => commands::self_update::run(check),
+
+        #[cfg(feature = "nsh-ui")]
+        Commands::Ui => {
+            // The NSH window runs its own message loop and reports the exit
+            // code itself; errors were already surfaced in the UI.
+            return Ok(());
+        }
 
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();

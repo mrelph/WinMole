@@ -7,7 +7,7 @@ use crate::commands::print_error;
 use crate::ui::theme;
 
 /// Simplified startup item info for UI selection
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct StartupItemInfo {
     pub name: String,
     pub enabled: bool,

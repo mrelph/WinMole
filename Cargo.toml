@@ -18,7 +18,7 @@ clap_complete = "4.5"
 tokio = { version = "1.40", features = ["full"] }
 
 # Windows APIs
-windows = { version = "0.58", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_System_SystemInformation",
     "Win32_System_ProcessStatus",
@@ -69,6 +69,19 @@ uuid = { version = "1.0", features = ["v4"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
+# Native Shell desktop UI (winmole ui). Windows-only: on Linux the feature
+# compiles but the NSH runtime and its GTK4 backend are not pulled in, so the
+# Linux CI check stays green without a GTK system dependency.
+nsh-core = { version = "0.4.0", features = ["svg", "loader"], optional = true }
+nsh-base = { version = "0.4.0", features = ["highlight", "math"], optional = true }
+nsh-engine = { version = "0.4.0", features = ["net", "shader"], optional = true }
+nsh-platform-windows = { version = "0.4.0", optional = true }
+
+[features]
+default = []
+# Native Shell desktop UI (`winmole ui`). On non-Windows targets the flag is
+# accepted but has no effect (the NSH backend is Windows-only).
+nsh-ui = ["dep:nsh-core", "dep:nsh-base", "dep:nsh-engine", "dep:nsh-platform-windows"]
 
 [profile.release]
 lto = true
