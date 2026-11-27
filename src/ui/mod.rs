@@ -914,7 +914,7 @@ fn run_legacy_tui() -> Result<()> {
                                         icons::DIAGNOSE,
                                         "Process analysis",
                                     );
-                                    commands::diagnose::run("processes")?;
+                                    commands::diagnose::run("processes", false, false, false, false)?;
                                 }
                                 1 => {
                                     theme::print_command_banner(
@@ -922,7 +922,7 @@ fn run_legacy_tui() -> Result<()> {
                                         icons::DIAGNOSE,
                                         "Memory analysis",
                                     );
-                                    commands::diagnose::run("memory")?;
+                                    commands::diagnose::run("memory", false, false, false, false)?;
                                 }
                                 2 => {
                                     theme::print_command_banner(
@@ -930,7 +930,7 @@ fn run_legacy_tui() -> Result<()> {
                                         icons::DIAGNOSE,
                                         "Service analysis",
                                     );
-                                    commands::diagnose::run("services")?;
+                                    commands::diagnose::run("services", false, false, false, false)?;
                                 }
                                 _ => {
                                     theme::print_command_banner(
@@ -938,7 +938,7 @@ fn run_legacy_tui() -> Result<()> {
                                         icons::DIAGNOSE,
                                         "Full diagnostics",
                                     );
-                                    commands::diagnose::run("all")?;
+                                    commands::diagnose::run("all", false, false, false, false)?;
                                 }
                             }
                             wait_for_enter()?;

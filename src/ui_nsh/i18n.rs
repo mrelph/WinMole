@@ -93,6 +93,32 @@ impl T {
     pub const RESCAN_DONE: (&'static str, &'static str) =
         ("按“重新扫描”再次扫描", "Press Rescan to scan again");
 
+    pub const RESIDUAL_PROCESSES: (&'static str, &'static str) =
+        ("残留的开发工具进程", "Residual developer processes");
+    pub const RESIDUAL_PROCESSES_HINT: (&'static str, &'static str) =
+        ("仅识别无可见窗口的 IDE、opencode 与 Git 残留；活动进程受保护，孤立 OpenCode 服务仅在桌面端关闭后列出",
+         "Only windowless IDE, opencode, and Git leftovers are listed; orphaned OpenCode services require the desktop app to be closed");
+    pub const RESIDUAL_SCANNING: (&'static str, &'static str) =
+        ("正在检查残留的 IDE、opencode 与 Git 进程…", "Checking for residual IDE, opencode, and Git processes…");
+    pub const NO_RESIDUAL_PROCESSES: (&'static str, &'static str) =
+        ("未发现残留进程", "No residual processes found");
+    pub const TERMINATE_SELECTED: (&'static str, &'static str) =
+        ("终止所选进程", "Terminate selected");
+    pub const TERMINATING: (&'static str, &'static str) =
+        ("正在终止所选进程…", "Terminating selected processes…");
+    pub const SELECT_RESIDUAL_PROCESS: (&'static str, &'static str) =
+        ("请选择要终止的残留进程", "Select a residual process to terminate");
+    pub const PROCESS_SKIPPED: (&'static str, &'static str) =
+        ("已跳过（进程已变化）", "Skipped (process changed)");
+    pub const RESIDUAL_COMPLETE: (&'static str, &'static str) =
+        ("残留进程清理完成", "Residual process cleanup complete");
+    pub const CONFIRM_PROCESS_TITLE: (&'static str, &'static str) =
+        ("确认终止残留进程", "Confirm residual process termination");
+    pub const CONFIRM_PROCESS_MSG: (&'static str, &'static str) =
+        ("将强制终止所选进程。输入 APPLY 以继续。",
+         "The selected processes will be forcefully terminated. Type APPLY to continue.");
+    pub const TERMINATE: (&'static str, &'static str) = ("终止", "Terminate");
+
     pub const DISK_TITLE: (&'static str, &'static str) = ("磁盘占用 · 文件夹", "DISK · FOLDERS");
     pub const DISK_SCANNING: (&'static str, &'static str) =
         ("正在分析最大文件夹…", "Analyzing largest folders…");
@@ -112,11 +138,11 @@ impl T {
     pub const NO_IMPACT_CHANGE: (&'static str, &'static str) =
         ("未改变启动影响", "No staged impact change");
     pub const CHANGES_ON_APPLY: (&'static str, &'static str) =
-        ("点击“应用”后生效，而非切换时", "Changes apply on Apply, not on toggle");
+        ("点击“应用”后写入，下次登录生效", "Written on Apply; takes effect at next sign-in");
     pub const NO_STARTUP_CHANGES: (&'static str, &'static str) =
         ("没有待应用的启动项变更", "No startup changes are staged");
-    pub const STARTUP_COMPLETE: (&'static str, &'static str) =
-        ("已应用启动项变更", "Applied startup changes");
+    pub const STARTUP_RESULT: (&'static str, &'static str) =
+        ("启动项变更：成功 {ok} 项，失败 {failed} 项", "Startup changes: {ok} applied, {failed} failed");
 
     pub const PACKAGES_TITLE: (&'static str, &'static str) =
         ("软件包 · 可用更新", "PACKAGES · AVAILABLE UPDATES");

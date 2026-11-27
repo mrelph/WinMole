@@ -14,7 +14,8 @@ use crate::commands::optimize::common::TweakState;
 use crate::ui_nsh::i18n;
 use crate::ui_nsh::i18n::{Lang, T};
 use crate::ui_nsh::{
-    cleanable_total, drain as drain_events, format_uptime, Ctx, ItemResult, ModuleId, Phase,
+    cleanable_total, drain as drain_events, format_uptime, Ctx, ItemResult, ModuleId, PendingAction,
+    Phase,
 };
 use std::rc::Rc;
 use std::time::Duration;
@@ -186,7 +187,8 @@ fn list_row(
         .child(
             text(status)
                 .text_size(px(11.0))
-                .text_color(move || theme().muted_foreground),
+                .text_color(move || theme().muted_foreground)
+                .truncate(),
         )
 }
 
@@ -621,12 +623,95 @@ fn cleanup_screen(ctx: Rc<Ctx>) -> nsh_core::element::View {
             .text_color(move || theme().muted_foreground)
             .into_element(),
     );
+    children.push(residual_process_section(Rc::clone(&ctx)).into_element());
 
     view()
         .flex_col()
         .flex_1()
         .w_full()
         .gap(px(10.0))
+        .children(children)
+}
+
+fn residual_process_section(ctx: Rc<Ctx>) -> nsh_core::element::View {
+    let rows: Vec<nsh_core::element::View> = ctx
+        .residual_rows
+        .get()
+        .into_iter()
+        .enumerate()
+        .map(|(index, row)| {
+            let press_ctx = Rc::clone(&ctx);
+            let name = row.process.name.clone();
+            let pid = row.process.pid;
+            let parent = row
+                .process
+                .parent_pid
+                .map(|parent| parent.to_string())
+                .unwrap_or_else(|| i18n::t(T::UNKNOWN).to_string());
+            let checked = row.checked;
+            let result = row.result.clone();
+            list_row(
+                move || name.clone(),
+                move || format!("PID {pid} · parent {parent}"),
+                move || checked,
+                move || result_text(&result),
+                move || press_ctx.toggle_residual_row(index),
+            )
+        })
+        .collect();
+    let selected = ctx.residual_rows.get().iter().filter(|row| row.checked).count();
+    let mut children: Vec<AnyElement> = vec![
+        text(i18n::t(T::RESIDUAL_PROCESSES))
+            .text_size(px(14.0))
+            .font_weight(FontWeight::BOLD)
+            .into_element(),
+        text(i18n::t(T::RESIDUAL_PROCESSES_HINT))
+            .text_size(px(11.0))
+            .text_color(move || theme().muted_foreground)
+            .into_element(),
+    ];
+    match ctx.residual_phase.get() {
+        Phase::Scanning => children.push(
+            phase_banner(i18n::t(T::RESIDUAL_SCANNING), false).into_element(),
+        ),
+        Phase::Error => children.push(
+            phase_banner(error_text(&ctx.residual_error.get()), true).into_element(),
+        ),
+        Phase::Done => children.push(
+            phase_banner(done_text(&ctx.residual_summary.get()), false).into_element(),
+        ),
+        Phase::Select if rows.is_empty() => children.push(
+            text(i18n::t(T::NO_RESIDUAL_PROCESSES))
+                .text_size(px(12.0))
+                .text_color(move || theme().muted_foreground)
+                .into_element(),
+        ),
+        Phase::Select => {}
+        Phase::Applying => children.push(
+            phase_banner(i18n::t(T::TERMINATING), false).into_element(),
+        ),
+    }
+    children.extend(rows.into_iter().map(IntoElement::into_element));
+    children.push(staged_count_line(selected).into_element());
+    let press_ctx = Rc::clone(&ctx);
+    children.push(
+        view()
+            .flex_row()
+            .justify_end()
+            .child(destructive(
+                i18n::t(T::TERMINATE_SELECTED),
+                move || press_ctx.stage_residual_termination(),
+            ))
+            .into_element(),
+    );
+
+    view()
+        .flex_col()
+        .w_full()
+        .gap(px(8.0))
+        .p(px(12.0))
+        .rounded(move || theme().radius)
+        .bg(move || theme().muted)
         .children(children)
 }
 
@@ -729,16 +814,15 @@ fn startup_screen(ctx: Rc<Ctx>) -> nsh_core::element::View {
             let category = row.item.category.clone();
             let enabled = row.item.enabled;
             let staged = row.staged;
+            let result = row.result.clone();
             list_row(
                 move || name.clone(),
                 move || category.clone(),
                 move || staged,
-                move || {
-                    if enabled {
-                        i18n::t(T::ON).to_string()
-                    } else {
-                        i18n::t(T::OFF).to_string()
-                    }
+                move || match &result {
+                    ItemResult::Err(message) => format!("✗ {message}"),
+                    _ if enabled => i18n::t(T::ON).to_string(),
+                    _ => i18n::t(T::OFF).to_string(),
                 },
                 move || press_ctx.toggle_row(i),
             )
@@ -754,7 +838,12 @@ fn startup_screen(ctx: Rc<Ctx>) -> nsh_core::element::View {
     } else if phase == Phase::Done {
         children.push(phase_banner(done_text(&ctx.startup_summary.get()), false).into_element());
     }
-    let staged_startup = ctx.startup_rows.get().iter().filter(|r| r.staged).count();
+    let staged_startup = ctx
+        .startup_rows
+        .get()
+        .iter()
+        .filter(|row| row.item.enabled != row.staged)
+        .count();
     children.push(scroll_rows(rows).into_element());
     children.push(staged_count_line(staged_startup).into_element());
     children.push(
@@ -945,92 +1034,118 @@ fn scroll_rows(rows: Vec<nsh_core::element::View>) -> nsh_core::element::Scroll 
 // ------------------------------------------------------------- overlays ----
 
 fn overlay_notice(ctx: Rc<Ctx>) -> nsh_core::element::View {
-    let notice_ctx = Rc::clone(&ctx);
+    let notice = ctx.notice;
     view()
         .absolute()
-        .top(px(16.0))
+        .top(px(104.0))
         .right(px(16.0))
-        .when(ctx.notice.get().is_some(), move |_| {
-            view()
-                .flex_row()
-                .items_center()
-                .gap(px(8.0))
-                .px(px(14.0))
-                .py(px(10.0))
-                .rounded(move || theme().radius)
-                .bg(move || theme().popover)
-                .child(
-                    text(move || {
-                        notice_ctx.notice.get().map(|(s, _)| s).unwrap_or_default()
-                    })
-                    .text_size(px(12.0))
-                    .text_color(move || theme().popover_foreground),
-                )
-        })
+        .pointer_events(PointerEvents::None)
+        .child(nsh_core::element::when(
+            move || notice.get().is_some(),
+            move || {
+                view()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(8.0))
+                    .px(px(14.0))
+                    .py(px(10.0))
+                    .rounded(move || theme().radius)
+                    .bg(move || theme().popover)
+                    .child(
+                        text(move || notice.get().map(|(s, _)| s).unwrap_or_default())
+                            .text_size(px(12.0))
+                            .text_color(move || theme().popover_foreground),
+                    )
+            },
+        ))
 }
 
 fn overlay_confirm(ctx: Rc<Ctx>) -> nsh_core::element::View {
+    let confirm_open = ctx.confirm_open;
     view()
         .absolute()
         .inset_0()
         .pointer_events(PointerEvents::BoxNone)
-        .when(ctx.confirm_open.get(), |_| {
-            let confirm_ctx = Rc::clone(&ctx);
-            let confirm_ctx2 = Rc::clone(&ctx);
-            let confirm_ctx3 = Rc::clone(&ctx);
-            let confirm_ctx4 = Rc::clone(&ctx);
-            let cancel_ctx = Rc::clone(&ctx);
-            view()
-                .flex_col()
-                .items_center()
-                .justify_center()
-                .w_full()
-                .h_full()
-                .bg(hsla(0.0, 0.0, 0.0, 0.55))
-                .child(
-                    card()
-                        .w(px(360.0))
-                        .child(
-                            text(move || i18n::t(T::CONFIRM_RISKY_TITLE))
-                                .text_size(px(14.0))
-                                .font_weight(FontWeight::BOLD),
-                        )
-                        .child(
-                            input()
-                                .value(move || confirm_ctx2.confirm_input.get())
-                                .placeholder(confirm_placeholder())
-                                .on_change(move |s: &str| confirm_ctx4.set_confirm_input(s.to_string()))
-                                .on_submit(move |s: &str| confirm_ctx3.confirm_try_apply_typed(s)),
-                        )
-                        .child(
-                            text(move || confirm_text(&ctx))
-                                .text_size(px(12.0))
-                                .text_color(move || theme().muted_foreground),
-                        )
-                        .child(
-                            view()
-                                .flex_row()
-                                .justify_end()
-                                .gap(px(8.0))
-                                .child(secondary(cancel_label(), move || cancel_ctx.confirm_cancel()))
-                                .child(
-                                    destructive(confirm_apply_label(), move || {
-                                        confirm_ctx.confirm_apply()
+        .child(nsh_core::element::when(
+            move || confirm_open.get(),
+            move || {
+                let confirm_ctx = Rc::clone(&ctx);
+                let confirm_ctx2 = Rc::clone(&ctx);
+                let confirm_ctx3 = Rc::clone(&ctx);
+                let confirm_ctx4 = Rc::clone(&ctx);
+                let cancel_ctx = Rc::clone(&ctx);
+                let title_ctx = Rc::clone(&ctx);
+                view()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .w_full()
+                    .h_full()
+                    .bg(hsla(0.0, 0.0, 0.0, 0.55))
+                    .child(
+                        card()
+                            .w(px(360.0))
+                            .child(
+                                text(move || confirm_title(&title_ctx))
+                                    .text_size(px(14.0))
+                                    .font_weight(FontWeight::BOLD),
+                            )
+                            .child(
+                                input()
+                                    .value(move || confirm_ctx2.confirm_input.get())
+                                    .placeholder(confirm_placeholder())
+                                    .on_change(move |s: &str| {
+                                        confirm_ctx4.set_confirm_input(s.to_string())
+                                    })
+                                    .on_submit(move |s: &str| {
+                                        confirm_ctx3.confirm_try_apply_typed(s)
                                     }),
-                                ),
-                        ),
-                )
-        })
+                            )
+                            .child({
+                                let confirm_text_ctx = Rc::clone(&ctx);
+                                text(move || confirm_text(&confirm_text_ctx))
+                                    .text_size(px(12.0))
+                                    .text_color(move || theme().muted_foreground)
+                            })
+                            .child(
+                                view()
+                                    .flex_row()
+                                    .justify_end()
+                                    .gap(px(8.0))
+                                    .child(secondary(
+                                        cancel_label(),
+                                        move || cancel_ctx.confirm_cancel(),
+                                    ))
+                                    .child(destructive(confirm_apply_label(), move || {
+                                        let typed = confirm_ctx.confirm_input.get();
+                                        confirm_ctx.confirm_try_apply_typed(&typed)
+                                    })),
+                            ),
+                    )
+            },
+        ))
+}
+
+fn confirm_title(ctx: &Ctx) -> SharedString {
+    match ctx.pending_action.get() {
+        Some(PendingAction::Processes(_)) => i18n::t(T::CONFIRM_PROCESS_TITLE),
+        _ => i18n::t(T::CONFIRM_RISKY_TITLE),
+    }
 }
 
 fn confirm_text(ctx: &Ctx) -> String {
-    let count = ctx
-        .pending_changes
-        .get()
-        .iter()
-        .filter(|(_, _, desired)| *desired)
-        .count();
-    format!("{} {count}", i18n::t(T::CONFIRM_RISKY_MSG))
+    match ctx.pending_action.get() {
+        Some(PendingAction::Optimize(changes)) => {
+            let count = changes.iter().filter(|(_, _, desired)| *desired).count();
+            format!("{} {count}", i18n::t(T::CONFIRM_RISKY_MSG))
+        }
+        Some(PendingAction::Processes(processes)) => format!(
+            "{} {}",
+            i18n::t(T::CONFIRM_PROCESS_MSG),
+            processes.len()
+        ),
+        None => String::new(),
+    }
 }
 
 fn cancel_label() -> SharedString {

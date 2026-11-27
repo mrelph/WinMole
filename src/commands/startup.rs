@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use anyhow::Context;
 use anyhow::Result;
 #[cfg(windows)]
 use console::style;
@@ -28,41 +30,160 @@ pub fn get_startup_items() -> Vec<StartupItemInfo> {
     }
 }
 
-/// Apply a staged startup toggle without printing into an active TUI.
 #[cfg(windows)]
-pub fn set_item_enabled(name: &str, enabled: bool) -> Result<()> {
-    use winreg::enums::*;
-    use winreg::RegKey;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StartupLocation {
+    UserRun,
+    MachineRun,
+    MachineRun32,
+    UserStartupFolder,
+}
 
-    let approved_paths = [
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run",
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32",
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder",
-    ];
-    let hives = [HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE];
+#[cfg(windows)]
+const REGISTRY_STARTUP_LOCATIONS: [StartupLocation; 3] = [
+    StartupLocation::UserRun,
+    StartupLocation::MachineRun,
+    StartupLocation::MachineRun32,
+];
 
-    for hkey in hives {
-        let root = RegKey::predef(hkey);
-        for path in approved_paths {
-            if let Ok(key) = root.open_subkey_with_flags(path, KEY_READ | KEY_WRITE) {
-                for value_name in [name.to_string(), format!("{name}.lnk")] {
-                    if let Ok(mut value) = key.get_raw_value(&value_name) {
-                        if value.bytes.is_empty() {
-                            continue;
-                        }
-                        value.bytes[0] = if enabled { 0x02 } else { 0x03 };
-                        key.set_raw_value(&value_name, &value)?;
-                        return Ok(());
-                    }
-                }
+#[cfg(windows)]
+impl StartupLocation {
+    fn hive(self) -> winreg::HKEY {
+        match self {
+            Self::UserRun | Self::UserStartupFolder => winreg::enums::HKEY_CURRENT_USER,
+            Self::MachineRun | Self::MachineRun32 => winreg::enums::HKEY_LOCAL_MACHINE,
+        }
+    }
+
+    fn hive_name(self) -> &'static str {
+        match self {
+            Self::UserRun | Self::UserStartupFolder => "HKCU",
+            Self::MachineRun | Self::MachineRun32 => "HKLM",
+        }
+    }
+
+    fn source_path(self) -> &'static str {
+        match self {
+            Self::UserRun | Self::MachineRun => "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+            Self::MachineRun32 => "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run",
+            Self::UserStartupFolder => "",
+        }
+    }
+
+    fn approved_path(self) -> &'static str {
+        match self {
+            Self::UserRun | Self::MachineRun => {
+                "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run"
+            }
+            Self::MachineRun32 => {
+                "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32"
+            }
+            Self::UserStartupFolder => {
+                "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder"
             }
         }
     }
 
+    fn approval_value_names(self, name: &str) -> [String; 2] {
+        if self == Self::UserStartupFolder {
+            [format!("{name}.lnk"), name.to_string()]
+        } else {
+            [name.to_string(), format!("{name}.lnk")]
+        }
+    }
+
+    fn source_exists(self, name: &str) -> bool {
+        if self == Self::UserStartupFolder {
+            return dirs::data_local_dir()
+                .map(|directory| {
+                    directory
+                        .join("Microsoft\\Windows\\Start Menu\\Programs\\Startup")
+                        .join(format!("{name}.lnk"))
+                })
+                .is_some_and(|path| path.is_file());
+        }
+
+        winreg::RegKey::predef(self.hive())
+            .open_subkey(self.source_path())
+            .and_then(|key| key.get_raw_value(name))
+            .is_ok()
+    }
+}
+
+/// Apply a staged startup toggle without printing into an active TUI.
+#[cfg(windows)]
+pub fn set_item_enabled(name: &str, enabled: bool) -> Result<()> {
+    for location in REGISTRY_STARTUP_LOCATIONS
+        .into_iter()
+        .chain([StartupLocation::UserStartupFolder])
+    {
+        if location.source_exists(name) {
+            set_startup_approval(location, name, enabled)?;
+            return Ok(());
+        }
+    }
+
     anyhow::bail!(
-        "Startup item '{}' has no writable StartupApproved entry",
+        "Startup item '{}' was not found in supported startup locations",
         name
     )
+}
+
+#[cfg(windows)]
+fn set_startup_approval(location: StartupLocation, name: &str, enabled: bool) -> Result<()> {
+    use winreg::enums::*;
+    use winreg::RegKey;
+
+    let root = RegKey::predef(location.hive());
+    let (key, _) = root
+        .create_subkey_with_flags(location.approved_path(), KEY_READ | KEY_WRITE)
+        .with_context(|| {
+            format!(
+                "Could not open {}\\{} for writing; administrator privileges may be required",
+                location.hive_name(),
+                location.approved_path()
+            )
+        })?;
+
+    let value_names = location.approval_value_names(name);
+    let mut value_name = value_names[0].clone();
+    let mut current = key.get_raw_value(&value_name).ok();
+    if current.is_none() {
+        if let Ok(value) = key.get_raw_value(&value_names[1]) {
+            value_name = value_names[1].clone();
+            current = Some(value);
+        }
+    }
+
+    let value = startup_approval_value(current, enabled);
+    key.set_raw_value(&value_name, &value).with_context(|| {
+        format!(
+            "Could not update {}\\{}\\{}",
+            location.hive_name(),
+            location.approved_path(),
+            value_name
+        )
+    })?;
+
+    let written = key.get_raw_value(&value_name)?;
+    let expected = if enabled { 0x02 } else { 0x03 };
+    anyhow::ensure!(
+        written.bytes.first() == Some(&expected),
+        "Windows did not persist the startup state for '{}'",
+        name
+    );
+    Ok(())
+}
+
+#[cfg(windows)]
+fn startup_approval_value(current: Option<winreg::RegValue>, enabled: bool) -> winreg::RegValue {
+    let mut bytes = current.map_or_else(Vec::new, |value| value.bytes);
+    bytes.resize(bytes.len().max(12), 0);
+    bytes[0] = if enabled { 0x02 } else { 0x03 };
+    winreg::RegValue {
+        vtype: winreg::enums::REG_BINARY,
+        bytes,
+    }
 }
 
 #[cfg(not(windows))]
@@ -72,29 +193,13 @@ pub fn set_item_enabled(_name: &str, _enabled: bool) -> Result<()> {
 
 #[cfg(windows)]
 fn get_startup_items_windows() -> Vec<StartupItemInfo> {
-    use winreg::enums::*;
     use winreg::RegKey;
 
     let mut items: Vec<StartupItemInfo> = Vec::new();
 
-    let registry_locations = [
-        (
-            HKEY_CURRENT_USER,
-            "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-        ),
-        (
-            HKEY_LOCAL_MACHINE,
-            "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-        ),
-        (
-            HKEY_LOCAL_MACHINE,
-            "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run",
-        ),
-    ];
-
-    for (hkey, path) in &registry_locations {
-        let root = RegKey::predef(*hkey);
-        if let Ok(run_key) = root.open_subkey(path) {
+    for location in REGISTRY_STARTUP_LOCATIONS {
+        let root = RegKey::predef(location.hive());
+        if let Ok(run_key) = root.open_subkey(location.source_path()) {
             for (name, value) in run_key.enum_values().filter_map(|v| v.ok()) {
                 let winreg::RegValue { bytes, .. } = value;
                 let command = String::from_utf8_lossy(&bytes)
@@ -113,7 +218,7 @@ fn get_startup_items_windows() -> Vec<StartupItemInfo> {
 
                 // Avoid duplicates (same name might appear in multiple locations)
                 if !items.iter().any(|i| i.name == name) {
-                    let enabled = startup_item_enabled(&name);
+                    let enabled = startup_item_enabled(location, &name);
                     items.push(StartupItemInfo {
                         name,
                         enabled,
@@ -141,9 +246,11 @@ fn get_startup_items_windows() -> Vec<StartupItemInfo> {
                         if !items.iter().any(|i| i.name == name) {
                             // Use the name for impact estimation since we don't have the full command
                             let impact = estimate_impact(&name);
+                            let enabled =
+                                startup_item_enabled(StartupLocation::UserStartupFolder, &name);
                             items.push(StartupItemInfo {
                                 name,
-                                enabled: true,
+                                enabled,
                                 category: "Third-party".to_string(),
                                 impact,
                             });
@@ -158,24 +265,14 @@ fn get_startup_items_windows() -> Vec<StartupItemInfo> {
 }
 
 #[cfg(windows)]
-fn startup_item_enabled(name: &str) -> bool {
-    use winreg::enums::*;
+fn startup_item_enabled(location: StartupLocation, name: &str) -> bool {
     use winreg::RegKey;
 
-    let approved_paths = [
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run",
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32",
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder",
-    ];
-    for hkey in [HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE] {
-        let root = RegKey::predef(hkey);
-        for path in approved_paths {
-            if let Ok(key) = root.open_subkey(path) {
-                for value_name in [name.to_string(), format!("{name}.lnk")] {
-                    if let Ok(value) = key.get_raw_value(value_name) {
-                        return value.bytes.first().copied() != Some(0x03);
-                    }
-                }
+    let root = RegKey::predef(location.hive());
+    if let Ok(key) = root.open_subkey(location.approved_path()) {
+        for value_name in location.approval_value_names(name) {
+            if let Ok(value) = key.get_raw_value(value_name) {
+                return value.bytes.first().copied() != Some(0x03);
             }
         }
     }
@@ -486,114 +583,32 @@ fn analyze_boot_impact() -> Result<()> {
 #[cfg(windows)]
 fn disable_item(name: Option<&str>) -> Result<()> {
     let name = match name {
-        Some(n) => n,
+        Some(name) => name,
         None => {
             print_error("Specify a startup item name with --name");
             return Ok(());
         }
     };
 
-    theme::print_info(&format!("Disabling: {}", name));
-
-    use winreg::enums::*;
-    use winreg::RegKey;
-
-    let startup_approved_path =
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
-
-    // Try HKCU first, then HKLM
-    let hives: [(winreg::HKEY, &str); 2] =
-        [(HKEY_CURRENT_USER, "HKCU"), (HKEY_LOCAL_MACHINE, "HKLM")];
-
-    for (hkey, hive_name) in &hives {
-        let root = RegKey::predef(*hkey);
-        if let Ok(approved_key) = root.open_subkey_with_flags(startup_approved_path, KEY_ALL_ACCESS)
-        {
-            if let Ok(mut reg_value) = approved_key.get_raw_value(name) {
-                if !reg_value.bytes.is_empty() {
-                    reg_value.bytes[0] = 0x03;
-                    match approved_key.set_raw_value(name, &reg_value) {
-                        Ok(_) => {
-                            theme::print_success(&format!(
-                                "Disabled '{}' in {}\\StartupApproved\\Run",
-                                name, hive_name
-                            ));
-                            return Ok(());
-                        }
-                        Err(e) => {
-                            theme::print_warning(&format!(
-                                "Failed to write registry value in {}: {}",
-                                hive_name, e
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    theme::print_warning(&format!(
-        "'{}' was not found in StartupApproved\\Run (HKCU or HKLM)",
-        name
-    ));
-
+    theme::print_info(&format!("Disabling: {name}"));
+    set_item_enabled(name, false)?;
+    theme::print_success(&format!("Disabled '{name}'"));
     Ok(())
 }
 
 #[cfg(windows)]
 fn enable_item(name: Option<&str>) -> Result<()> {
     let name = match name {
-        Some(n) => n,
+        Some(name) => name,
         None => {
             print_error("Specify a startup item name with --name");
             return Ok(());
         }
     };
 
-    theme::print_info(&format!("Enabling: {}", name));
-
-    use winreg::enums::*;
-    use winreg::RegKey;
-
-    let startup_approved_path =
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
-
-    // Try HKCU first, then HKLM
-    let hives: [(winreg::HKEY, &str); 2] =
-        [(HKEY_CURRENT_USER, "HKCU"), (HKEY_LOCAL_MACHINE, "HKLM")];
-
-    for (hkey, hive_name) in &hives {
-        let root = RegKey::predef(*hkey);
-        if let Ok(approved_key) = root.open_subkey_with_flags(startup_approved_path, KEY_ALL_ACCESS)
-        {
-            if let Ok(mut reg_value) = approved_key.get_raw_value(name) {
-                if !reg_value.bytes.is_empty() {
-                    reg_value.bytes[0] = 0x02;
-                    match approved_key.set_raw_value(name, &reg_value) {
-                        Ok(_) => {
-                            theme::print_success(&format!(
-                                "Enabled '{}' in {}\\StartupApproved\\Run",
-                                name, hive_name
-                            ));
-                            return Ok(());
-                        }
-                        Err(e) => {
-                            theme::print_warning(&format!(
-                                "Failed to write registry value in {}: {}",
-                                hive_name, e
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    theme::print_warning(&format!(
-        "'{}' was not found in StartupApproved\\Run (HKCU or HKLM)",
-        name
-    ));
-
+    theme::print_info(&format!("Enabling: {name}"));
+    set_item_enabled(name, true)?;
+    theme::print_success(&format!("Enabled '{name}'"));
     Ok(())
 }
 
@@ -672,4 +687,47 @@ fn estimate_impact(command: &str) -> String {
     }
 
     "Low".to_string()
+}
+
+#[cfg(all(windows, test))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn approval_values_use_windows_flags_and_preserve_payload() {
+        let disabled = startup_approval_value(None, false);
+        assert_eq!(disabled.vtype, winreg::enums::REG_BINARY);
+        assert_eq!(disabled.bytes, [3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        let current = winreg::RegValue {
+            vtype: winreg::enums::REG_BINARY,
+            bytes: vec![3, 9, 8, 7],
+        };
+        let enabled = startup_approval_value(Some(current), true);
+        assert_eq!(enabled.bytes, [2, 9, 8, 7, 0, 0, 0, 0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn missing_approval_is_created_and_read_back() -> Result<()> {
+        use winreg::enums::{KEY_READ, KEY_WRITE};
+        use winreg::RegKey;
+
+        let name = format!("WinMoleStartupTest_{}", uuid::Uuid::new_v4());
+        let result: Result<()> = (|| {
+            set_startup_approval(StartupLocation::UserRun, &name, false)?;
+            anyhow::ensure!(!startup_item_enabled(StartupLocation::UserRun, &name));
+            set_startup_approval(StartupLocation::UserRun, &name, true)?;
+            anyhow::ensure!(startup_item_enabled(StartupLocation::UserRun, &name));
+            Ok(())
+        })();
+
+        let root = RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
+        if let Ok(key) = root.open_subkey_with_flags(
+            StartupLocation::UserRun.approved_path(),
+            KEY_READ | KEY_WRITE,
+        ) {
+            let _ = key.delete_value(&name);
+        }
+        result
+    }
 }

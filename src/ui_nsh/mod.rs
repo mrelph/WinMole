@@ -14,7 +14,7 @@ pub mod run;
 
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nsh_core::prelude::*;
 use sysinfo::{Disks, System};
@@ -22,6 +22,7 @@ use sysinfo::{Disks, System};
 use crate::commands;
 use crate::commands::optimize::common::{Tweak, TweakRisk, TweakState};
 use crate::commands::optimize::{TweakExecutor, TweakRegistry};
+use crate::commands::processes::ResidualProcess;
 use crate::commands::registry::AuditFinding;
 use crate::commands::startup::StartupItemInfo;
 use crate::system::cleanup::CleanupTarget;
@@ -65,6 +66,19 @@ pub struct CleanupRow {
     pub target: CleanupTarget,
     pub checked: bool,
     pub result: ItemResult,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResidualRow {
+    pub process: ResidualProcess,
+    pub checked: bool,
+    pub result: ItemResult,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum PendingAction {
+    Optimize(Vec<(usize, Tweak, bool)>),
+    Processes(Vec<ResidualProcess>),
 }
 
 /// A startup item with a staged enabled/disabled toggle.
@@ -111,9 +125,10 @@ pub struct Ctx {
     pub lang: Signal<Lang>,
     pub confirm_open: Signal<bool>,
     pub confirm_input: Signal<String>,
-    /// The optimize changes awaiting typed confirmation.
-    pub pending_changes: Signal<Vec<(usize, Tweak, bool)>>,
+    /// The optimize or process changes awaiting typed confirmation.
+    pub pending_action: Signal<Option<PendingAction>>,
     pub notice: Signal<Option<(String, bool)>>,
+    notice_deadline: Signal<Option<Instant>>,
 
     pub stats: Signal<LiveStats>,
     pub health: Signal<Option<crate::system::HealthScore>>,
@@ -122,6 +137,11 @@ pub struct Ctx {
     pub cleanup_rows: Signal<Vec<CleanupRow>>,
     pub cleanup_summary: Signal<String>,
     pub cleanup_error: Signal<String>,
+
+    pub residual_phase: Signal<Phase>,
+    pub residual_rows: Signal<Vec<ResidualRow>>,
+    pub residual_summary: Signal<String>,
+    pub residual_error: Signal<String>,
 
     pub disk_loading: Signal<bool>,
     pub disk_path: Signal<PathBuf>,
@@ -181,6 +201,9 @@ pub struct LiveStats {
 #[derive(Debug)]
 pub enum WorkerEvent {
     CleanupScanned(Result<Vec<CleanupTarget>, String>),
+    ResidualScanned(Result<Vec<ResidualProcess>, String>),
+    ResidualProgress { index: usize, detail: Result<String, String> },
+    ResidualComplete { summary: String },
     DiskScanned { path: PathBuf, rows: Vec<(PathBuf, u64)> },
     StartupScanned(Vec<StartupItemInfo>),
     PackagesScanned(Result<Vec<(String, String, String, String)>, String>),
@@ -201,14 +224,19 @@ impl Ctx {
             lang,
             confirm_open: signal(false),
             confirm_input: signal(String::new()),
-            pending_changes: signal(Vec::new()),
+            pending_action: signal(None),
             notice: signal(None),
+            notice_deadline: signal(None),
             stats: signal(LiveStats::default()),
             health: signal(None),
             cleanup_phase: signal(Phase::Scanning),
             cleanup_rows: signal(Vec::new()),
             cleanup_summary: signal(String::new()),
             cleanup_error: signal(String::new()),
+            residual_phase: signal(Phase::Scanning),
+            residual_rows: signal(Vec::new()),
+            residual_summary: signal(String::new()),
+            residual_error: signal(String::new()),
             disk_loading: signal(true),
             disk_path: signal(dirs::home_dir().unwrap_or_else(|| PathBuf::from("C:\\"))),
             disk_rows: signal(Vec::new()),
@@ -235,6 +263,7 @@ impl Ctx {
         };
         ctx.refresh_stats();
         ctx.scan_cleanup();
+        ctx.scan_residual_processes();
         ctx.scan_startup();
         ctx
     }
@@ -247,6 +276,7 @@ impl Ctx {
     pub fn set_active(&self, module: ModuleId) {
         self.active.set(module);
         self.notice.set(None);
+        self.notice_deadline.set(None);
         self.ensure_scanned();
     }
 
@@ -261,13 +291,26 @@ impl Ctx {
 
     /// Close the risky-confirm dialog without applying anything.
     pub fn confirm_cancel(&self) {
-        self.pending_changes.set(Vec::new());
+        self.pending_action.set(None);
         self.confirm_input.set(String::new());
         self.confirm_open.set(false);
     }
 
     pub fn set_notice(&self, message: impl Into<SharedString>, is_error: bool) {
         self.notice.set(Some((message.into().to_string(), is_error)));
+        self.notice_deadline
+            .set(Some(Instant::now() + Duration::from_secs(5)));
+    }
+
+    pub fn expire_notice(&self) {
+        if self
+            .notice_deadline
+            .get()
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            self.notice.set(None);
+            self.notice_deadline.set(None);
+        }
     }
 
     pub fn set_confirm_input(&self, value: String) {
@@ -320,6 +363,15 @@ impl Ctx {
             let categories = vec!["all".to_string()];
             let result = commands::clean::scan_targets(&categories).map_err(|e| e.to_string());
             let _ = tx.send(WorkerEvent::CleanupScanned(result));
+        });
+    }
+
+    pub fn scan_residual_processes(&self) {
+        self.residual_phase.set(Phase::Scanning);
+        let tx = self.worker();
+        std::thread::spawn(move || {
+            let result = commands::processes::scan_residual_processes().map_err(|e| e.to_string());
+            let _ = tx.send(WorkerEvent::ResidualScanned(result));
         });
     }
 
@@ -398,7 +450,10 @@ impl Ctx {
                 self.scan_cleanup();
                 self.scan_startup();
             }
-            ModuleId::Cleanup => self.scan_cleanup(),
+            ModuleId::Cleanup => {
+                self.scan_cleanup();
+                self.scan_residual_processes();
+            }
             ModuleId::Disk => {
                 self.disk_started.set(true);
                 self.scan_disk();
@@ -459,6 +514,7 @@ impl Ctx {
                     if let Some(row) = rows.get_mut(index) {
                         if self.startup_phase.get() == Phase::Select {
                             row.staged = !row.staged;
+                            row.result = ItemResult::Pending;
                         }
                     }
                 });
@@ -490,6 +546,17 @@ impl Ctx {
             }
             _ => {}
         }
+    }
+
+    pub fn toggle_residual_row(&self, index: usize) {
+        if self.residual_phase.get() != Phase::Select {
+            return;
+        }
+        self.residual_rows.update(|rows| {
+            if let Some(row) = rows.get_mut(index) {
+                row.checked = !row.checked;
+            }
+        });
     }
 
     pub fn select_all_safe(&self) {
@@ -586,6 +653,52 @@ impl Ctx {
         });
     }
 
+    pub fn stage_residual_termination(&self) {
+        if self.residual_phase.get() != Phase::Select {
+            return;
+        }
+        let selected: Vec<ResidualProcess> = self
+            .residual_rows
+            .get()
+            .into_iter()
+            .filter(|row| row.checked)
+            .map(|row| row.process)
+            .collect();
+        if selected.is_empty() {
+            self.set_notice(i18n::t(T::SELECT_RESIDUAL_PROCESS), true);
+            return;
+        }
+        self.pending_action.set(Some(PendingAction::Processes(selected)));
+        self.confirm_input.set(String::new());
+        self.confirm_open.set(true);
+    }
+
+    fn run_residual_processes(&self, selected: Vec<ResidualProcess>) {
+        self.residual_phase.set(Phase::Applying);
+        let total = selected.len();
+        let lang = i18n::lang().get();
+        let tx = self.worker();
+        std::thread::spawn(move || {
+            let mut terminated = 0usize;
+            for (index, process) in selected.into_iter().enumerate() {
+                let detail = match commands::processes::terminate_residual_process(&process) {
+                    Ok(true) => {
+                        terminated += 1;
+                        Ok(i18n::pick(lang, T::OK).to_string())
+                    }
+                    Ok(false) => Ok(i18n::pick(lang, T::PROCESS_SKIPPED).to_string()),
+                    Err(error) => Err(error.to_string()),
+                };
+                let _ = tx.send(WorkerEvent::ResidualProgress { index, detail });
+            }
+            let summary = format!(
+                "{}: {terminated}/{total}",
+                i18n::pick(lang, T::RESIDUAL_COMPLETE)
+            );
+            let _ = tx.send(WorkerEvent::ResidualComplete { summary });
+        });
+    }
+
     fn apply_startup(&self) {
         if self.startup_phase.get() != Phase::Select {
             return;
@@ -606,19 +719,29 @@ impl Ctx {
         let lang = i18n::lang().get();
         let tx = self.worker();
         std::thread::spawn(move || {
+            let mut succeeded = 0usize;
+            let mut failed = 0usize;
             for (index, name, enabled) in changes {
                 let result = commands::startup::set_item_enabled(&name, enabled)
                     .map(|_| i18n::pick(lang, T::OK).to_string())
                     .map_err(|e| e.to_string());
+                if result.is_ok() {
+                    succeeded += 1;
+                } else {
+                    failed += 1;
+                }
                 let _ = tx.send(WorkerEvent::ActionProgress {
                     module: ModuleId::Startup,
                     index,
                     detail: result,
                 });
             }
+            let summary = i18n::pick(lang, T::STARTUP_RESULT)
+                .replace("{ok}", &succeeded.to_string())
+                .replace("{failed}", &failed.to_string());
             let _ = tx.send(WorkerEvent::ActionComplete {
                 module: ModuleId::Startup,
-                summary: i18n::pick(lang, T::STARTUP_COMPLETE).to_string(),
+                summary,
             });
         });
     }
@@ -723,7 +846,8 @@ impl Ctx {
             matches!(tweak.risk, TweakRisk::Risky | TweakRisk::Dangerous)
         });
         if risky {
-            self.pending_changes.set(changes);
+            self.pending_action
+                .set(Some(PendingAction::Optimize(changes)));
             self.confirm_open.set(true);
             self.confirm_input.set(String::new());
             return;
@@ -772,12 +896,14 @@ impl Ctx {
 
     /// The confirmation dialog was accepted: run the stored risky changes.
     pub fn confirm_apply(&self) {
-        let mut changes = Vec::new();
-        self.pending_changes.update(|pending| {
-            std::mem::swap(pending, &mut changes);
-        });
+        let action = self.pending_action.get();
+        self.pending_action.set(None);
         self.confirm_open.set(false);
-        self.run_optimize(changes);
+        match action {
+            Some(PendingAction::Optimize(changes)) => self.run_optimize(changes),
+            Some(PendingAction::Processes(processes)) => self.run_residual_processes(processes),
+            None => {}
+        }
     }
 }
 
@@ -785,6 +911,7 @@ impl Ctx {
 /// Drain pending worker events into the signals. Called from a repeating
 /// effect in the root component.
 pub fn drain(ctx: &Ctx) {
+    ctx.expire_notice();
     while let Ok(event) = ctx.worker_rx.try_recv() {
         match event {
             WorkerEvent::CleanupScanned(Ok(targets)) => {
@@ -803,6 +930,38 @@ pub fn drain(ctx: &Ctx) {
             WorkerEvent::CleanupScanned(Err(e)) => {
                 ctx.cleanup_error.set(e);
                 ctx.cleanup_phase.set(Phase::Error);
+            }
+            WorkerEvent::ResidualScanned(Ok(processes)) => {
+                ctx.residual_rows.set(
+                    processes
+                        .into_iter()
+                        .map(|process| ResidualRow {
+                            process,
+                            checked: false,
+                            result: ItemResult::Pending,
+                        })
+                        .collect(),
+                );
+                ctx.residual_phase.set(Phase::Select);
+            }
+            WorkerEvent::ResidualScanned(Err(e)) => {
+                ctx.residual_error.set(e);
+                ctx.residual_phase.set(Phase::Error);
+            }
+            WorkerEvent::ResidualProgress { index, detail } => {
+                ctx.residual_rows.update(|rows| {
+                    if let Some(row) = rows.get_mut(index) {
+                        row.result = match detail {
+                            Ok(message) => ItemResult::Ok(message),
+                            Err(message) => ItemResult::Err(message),
+                        };
+                    }
+                });
+            }
+            WorkerEvent::ResidualComplete { summary } => {
+                ctx.residual_phase.set(Phase::Done);
+                ctx.residual_summary.set(summary.clone());
+                ctx.set_notice(summary, false);
             }
             WorkerEvent::DiskScanned { path, rows } => {
                 ctx.disk_path.set(path);

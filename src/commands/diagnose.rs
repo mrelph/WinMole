@@ -1,11 +1,25 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use console::style;
 use dialoguer::{theme::ColorfulTheme, MultiSelect, Select};
+#[cfg(windows)]
+use dialoguer::Confirm;
 use sysinfo::System;
 use crate::commands::format_size;
+#[cfg(windows)]
+use crate::commands::processes::{
+    scan_residual_processes, terminate_residual_process, ProcessFailure,
+};
+use crate::commands::processes::{ResidualCleanupReport, ResidualProcess};
 use crate::ui::theme::{self, icons, boxes, create_threshold_bar};
 
-pub fn run(action: &str) -> Result<()> {
+pub fn run(action: &str, kill_stale: bool, dry_run: bool, yes: bool, json: bool) -> Result<()> {
+    if kill_stale {
+        if !matches!(action, "processes" | "procs") {
+            bail!("--kill-stale requires the processes action");
+        }
+        return clean_residual_processes(dry_run, yes, json);
+    }
+
     match action {
         "processes" | "procs" => analyze_processes()?,
         "services" => analyze_services()?,
@@ -29,6 +43,157 @@ pub fn run(action: &str) -> Result<()> {
 
     println!();
     Ok(())
+}
+
+#[cfg(windows)]
+fn clean_residual_processes(dry_run: bool, yes: bool, json: bool) -> Result<()> {
+    if json && !dry_run && !yes {
+        bail!("--json requires --yes when terminating residual processes");
+    }
+
+    let candidates = scan_residual_processes()?;
+    let mut report = ResidualCleanupReport {
+        dry_run,
+        candidates: candidates.clone(),
+        ..ResidualCleanupReport::default()
+    };
+
+    if json {
+        if dry_run || candidates.is_empty() {
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
+    } else {
+        print_residual_preview(&candidates);
+    }
+
+    if candidates.is_empty() {
+        if !json {
+            theme::print_success("No residual IDE, opencode, or Git processes found");
+        }
+        return Ok(());
+    }
+    if dry_run {
+        if !json {
+            theme::print_info("Dry run: no processes were terminated");
+        }
+        return Ok(());
+    }
+
+    let selected = if yes {
+        candidates
+    } else {
+        let display_items: Vec<String> = candidates
+            .iter()
+            .map(|process| {
+                format!(
+                    "{} · PID {} · parent {}",
+                    truncate(&process.name, 28),
+                    process.pid,
+                    process
+                        .parent_pid
+                        .map(|pid| pid.to_string())
+                        .unwrap_or_else(|| "unknown".to_string())
+                )
+            })
+            .collect();
+        let Some(indices) = MultiSelect::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select residual processes to terminate (Space to select)")
+            .items(&display_items)
+            .interact_opt()?
+        else {
+            if !json {
+                theme::print_warning("Cancelled; no processes were terminated");
+            }
+            return Ok(());
+        };
+        if indices.is_empty() {
+            if !json {
+                theme::print_warning("No processes selected; nothing was terminated");
+            }
+            return Ok(());
+        }
+        if !Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt(format!("Terminate {} selected process(es)?", indices.len()))
+            .default(false)
+            .interact()?
+        {
+            theme::print_warning("Cancelled; no processes were terminated");
+            return Ok(());
+        }
+        indices
+            .into_iter()
+            .map(|index| candidates[index].clone())
+            .collect()
+    };
+
+    for process in selected {
+        match terminate_residual_process(&process) {
+            Ok(true) => report.terminated.push(process.pid),
+            Ok(false) => report.skipped.push(process.pid),
+            Err(error) => report.failed.push(ProcessFailure {
+                pid: process.pid,
+                error: error.to_string(),
+            }),
+        }
+    }
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_residual_results(&report);
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn clean_residual_processes(_dry_run: bool, _yes: bool, _json: bool) -> Result<()> {
+    bail!("residual process cleanup is only supported on Windows")
+}
+
+fn print_residual_preview(candidates: &[ResidualProcess]) {
+    theme::print_section_header("Residual Developer Processes");
+    println!(
+        "  {:<28} {:>8} {:>12}  {}",
+        style("Process").dim(),
+        style("PID").dim(),
+        style("Parent PID").dim(),
+        style("State").dim()
+    );
+    for process in candidates {
+        println!(
+            "  {:<28} {:>8} {:>12}  {}",
+            truncate(&process.name, 28),
+            process.pid,
+            process
+                .parent_pid
+                .map(|pid| pid.to_string())
+                .unwrap_or_else(|| "unknown".to_string()),
+            style("no visible window").dim()
+        );
+    }
+    println!();
+    theme::print_warning(
+        "Review each candidate: active windows, live tool parents, running OpenCode Desktop, and intentional servers are protected",
+    );
+}
+
+fn print_residual_results(report: &ResidualCleanupReport) {
+    theme::print_section_header("Residual Process Cleanup");
+    if !report.terminated.is_empty() {
+        theme::print_success(&format!(
+            "{} residual process(es) terminated",
+            report.terminated.len()
+        ));
+    }
+    if !report.skipped.is_empty() {
+        theme::print_info(&format!(
+            "{} process(es) exited, changed, or were no longer eligible",
+            report.skipped.len()
+        ));
+    }
+    for failure in &report.failed {
+        theme::print_error(&format!("PID {}: {}", failure.pid, failure.error));
+    }
 }
 
 fn analyze_processes() -> Result<()> {

@@ -37,7 +37,8 @@ struct Cli {
     verbose: u8,
 
     /// Output machine-readable JSON to stdout (status, disk, clean --dry-run,
-    /// optimize --list); suppresses colors, spinners, and prompts
+    /// optimize --list, diagnose processes --kill-stale); suppresses colors,
+    /// spinners, and prompts
     #[arg(long, global = true)]
     json: bool,
 }
@@ -164,6 +165,18 @@ enum Commands {
         /// Action: processes, memory, services, all
         #[arg(default_value = "all")]
         action: String,
+
+        /// Preview and clean residual IDE, opencode, and Git processes
+        #[arg(long)]
+        kill_stale: bool,
+
+        /// Preview residual processes without terminating them
+        #[arg(short = 'n', long, requires = "kill_stale")]
+        dry_run: bool,
+
+        /// Terminate all residual candidates without prompting
+        #[arg(short = 'y', long, requires = "kill_stale")]
+        yes: bool,
     },
 
     /// Show build, executable, configuration, and installation diagnostics
@@ -448,7 +461,12 @@ fn main() -> Result<()> {
             impact,
         } => commands::startup::run(&action, name.as_deref(), impact),
 
-        Commands::Diagnose { action } => commands::diagnose::run(&action),
+        Commands::Diagnose {
+            action,
+            kill_stale,
+            dry_run,
+            yes,
+        } => commands::diagnose::run(&action, kill_stale, dry_run, yes, json),
 
         Commands::Doctor => commands::doctor::run(json),
 

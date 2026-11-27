@@ -334,6 +334,15 @@ winmole diagnose all
 # Process analysis (high CPU/memory processes)
 winmole diagnose processes
 
+# Preview residual IDE, opencode, and Git processes without terminating them
+winmole diagnose processes --kill-stale --dry-run
+
+# Select residual processes and confirm before terminating them
+winmole diagnose processes --kill-stale
+
+# Machine-readable preview
+winmole --json diagnose processes --kill-stale --dry-run
+
 # Memory analysis (detailed memory breakdown)
 winmole diagnose memory
 
@@ -350,6 +359,15 @@ winmole diagnose services
 
 Diagnostics remain explicit CLI workflows so their detailed reports can use the
 full terminal without competing with the persistent dashboard.
+
+Residual-process cleanup uses a narrow allowlist (VS Code/Cursor and similar
+IDEs, `opencode`/`opencode-cli`, and common Git executables). It protects
+processes with visible windows, live tool parents, unknown parent state, a
+running OpenCode Desktop app, and intentional `git daemon` / `opencode serve`
+servers. An orphaned `opencode serve --service` process is listed only after
+both its parent and the OpenCode Desktop app are gone. Every candidate is
+previewed and revalidated immediately before termination. In `nsh-ui` builds,
+the same preview and selection flow is available in the Cleanup page.
 
 ## Interactive Mode
 

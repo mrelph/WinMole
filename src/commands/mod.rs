@@ -6,6 +6,7 @@ pub mod doctor;
 pub mod install;
 pub mod operations;
 pub mod optimize;
+pub mod processes;
 pub mod quickfix;
 pub mod registry;
 pub mod self_update;
