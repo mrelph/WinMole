@@ -9,7 +9,7 @@ use std::path::PathBuf;
 #[cfg(windows)]
 use console::style;
 #[cfg(windows)]
-use std::process::Command;
+use crate::commands::subprocess::quiet_command;
 #[cfg(windows)]
 use crate::ui::theme::icons;
 
@@ -72,7 +72,7 @@ impl BackupManager {
             description.replace('\'', "''")
         );
 
-        let output = Command::new("powershell")
+        let output = quiet_command("powershell")
             .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
             .output()?;
 

@@ -12,14 +12,14 @@ use crate::commands::optimize::{record_tweak_applied, TweakExecutor};
 use crate::operations::OperationKind;
 use crate::ui::theme;
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuditSeverity {
     #[cfg(windows)]
     Warning,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AuditFinding {
     pub id: String,
     pub category: String,

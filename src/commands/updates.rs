@@ -170,11 +170,11 @@ fn show_update_status() -> Result<()> {
 
 #[cfg(windows)]
 fn show_update_history() -> Result<()> {
-    use std::process::Command;
+    use crate::commands::subprocess::quiet_command;
 
     theme::print_section_header("Windows Update History");
 
-    let output = Command::new("powershell")
+    let output = quiet_command("powershell")
         .args([
             "-NoProfile",
             "-ExecutionPolicy",
@@ -227,7 +227,7 @@ fn show_update_history() -> Result<()> {
 
 #[cfg(windows)]
 fn show_pending_updates() -> Result<()> {
-    use std::process::Command;
+    use crate::commands::subprocess::quiet_command;
 
     theme::print_section_header("Pending Windows Updates");
 
@@ -254,7 +254,7 @@ try {
 }
 "#;
 
-    let output = Command::new("powershell")
+    let output = quiet_command("powershell")
         .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
         .output()?;
 
@@ -431,7 +431,7 @@ fn resume_updates(_dry_run: bool) -> Result<()> {
 
 #[cfg(windows)]
 fn trigger_update_check(dry_run: bool) -> Result<()> {
-    use std::process::Command;
+    use crate::commands::subprocess::quiet_command;
 
     theme::print_section_header("Check for Updates");
 
@@ -449,7 +449,7 @@ fn trigger_update_check(dry_run: bool) -> Result<()> {
         style(icons::PROGRESS).cyan()
     );
 
-    let output = Command::new("UsoClient").arg("StartScan").output()?;
+    let output = quiet_command("UsoClient").arg("StartScan").output()?;
 
     if output.status.success() {
         println!(

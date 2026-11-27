@@ -405,7 +405,7 @@ impl TweakExecutor {
 
     #[cfg(windows)]
     fn capture_action_state(&self, action: &TweakAction) -> Result<ActionState> {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
         use winreg::enums::*;
         use winreg::RegKey;
 
@@ -472,7 +472,7 @@ impl TweakExecutor {
                 })
             }
             TweakAction::ServiceSet { name, .. } => {
-                let output = Command::new("sc").args(["qc", name]).output()?;
+                let output = quiet_command("sc").args(["qc", name]).output()?;
                 if !output.status.success() {
                     return Err(anyhow!("Could not query service '{}'", name));
                 }
@@ -875,7 +875,7 @@ impl TweakExecutor {
         name: &str,
         startup_type: &ServiceStartupType,
     ) -> Result<ActionResult> {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
 
         let description = format!("Set service '{}' to {}", name, startup_type);
 
@@ -886,7 +886,7 @@ impl TweakExecutor {
             ServiceStartupType::Disabled => "disabled",
         };
 
-        let output = Command::new("sc")
+        let output = quiet_command("sc")
             .args(["config", name, &format!("start={}", start_type)])
             .output()?;
 
@@ -928,9 +928,9 @@ impl TweakExecutor {
         name: &str,
         expected: &ServiceStartupType,
     ) -> Result<bool> {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
 
-        let output = Command::new("sc").args(["qc", name]).output()?;
+        let output = quiet_command("sc").args(["qc", name]).output()?;
 
         if !output.status.success() {
             return Ok(false);
@@ -972,7 +972,7 @@ impl TweakExecutor {
 
     #[cfg(windows)]
     fn execute_scheduled_task_set(&self, path: &str, enabled: bool) -> Result<ActionResult> {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
 
         let description = format!(
             "{} scheduled task '{}'",
@@ -982,7 +982,7 @@ impl TweakExecutor {
 
         let action = if enabled { "/Enable" } else { "/Disable" };
 
-        let output = Command::new("schtasks")
+        let output = quiet_command("schtasks")
             .args(["/Change", "/TN", path, action])
             .output()?;
 
@@ -1025,9 +1025,9 @@ impl TweakExecutor {
 
     #[cfg(windows)]
     fn query_scheduled_task_enabled(&self, path: &str) -> Result<bool> {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
 
-        let output = Command::new("schtasks")
+        let output = quiet_command("schtasks")
             .args(["/Query", "/TN", path, "/V", "/FO", "LIST"])
             .output()?;
 
@@ -1069,9 +1069,9 @@ impl TweakExecutor {
 
     #[cfg(windows)]
     fn active_power_plan_guid(&self) -> Result<String> {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
 
-        let output = Command::new("powercfg").arg("/getactivescheme").output()?;
+        let output = quiet_command("powercfg").arg("/getactivescheme").output()?;
         if !output.status.success() {
             return Err(anyhow!(
                 "powercfg verification failed: {}",
@@ -1122,12 +1122,12 @@ impl TweakExecutor {
         guid: &str,
         action: &common::PowerPlanAction,
     ) -> Result<ActionResult> {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
 
         match action {
             common::PowerPlanAction::SetActive => {
                 let description = format!("Set power plan {} as active", guid);
-                let output = Command::new("powercfg")
+                let output = quiet_command("powercfg")
                     .args(["/setactive", guid])
                     .output()?;
 
@@ -1159,7 +1159,7 @@ impl TweakExecutor {
                 let mut errors = Vec::new();
 
                 if let Some(ac) = ac_value {
-                    let output = Command::new("powercfg")
+                    let output = quiet_command("powercfg")
                         .args(["/setacvalueindex", guid, subgroup, setting, &ac.to_string()])
                         .output()?;
                     if !output.status.success() {
@@ -1169,7 +1169,7 @@ impl TweakExecutor {
                 }
 
                 if let Some(dc) = dc_value {
-                    let output = Command::new("powercfg")
+                    let output = quiet_command("powercfg")
                         .args(["/setdcvalueindex", guid, subgroup, setting, &dc.to_string()])
                         .output()?;
                     if !output.status.success() {
@@ -1218,11 +1218,11 @@ impl TweakExecutor {
 
     #[cfg(windows)]
     fn execute_command(&self, command: &str, args: &[String]) -> Result<ActionResult> {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
 
         let description = format!("Run: {} {}", command, args.join(" "));
 
-        let output = Command::new(command).args(args).output()?;
+        let output = quiet_command(command).args(args).output()?;
 
         if output.status.success() {
             Ok(ActionResult {
@@ -1266,7 +1266,7 @@ impl TweakExecutor {
 
     #[cfg(windows)]
     fn query_appx_packages(&self, package_pattern: &str, provisioned: bool) -> Result<Vec<String>> {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
 
         let safe_pattern = package_pattern.replace('\'', "''");
         let script = if provisioned {
@@ -1280,7 +1280,7 @@ impl TweakExecutor {
                 safe_pattern
             )
         };
-        let output = Command::new("powershell")
+        let output = quiet_command("powershell")
             .args(["-NoProfile", "-Command", &script])
             .output()?;
         if !output.status.success() {
@@ -1312,7 +1312,7 @@ impl TweakExecutor {
         package_pattern: &str,
         provisioned: bool,
     ) -> Result<ActionResult> {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
 
         let description = if provisioned {
             format!("Remove provisioned AppX: {}", package_pattern)
@@ -1333,7 +1333,7 @@ impl TweakExecutor {
             )
         };
 
-        let output = Command::new("powershell")
+        let output = quiet_command("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",

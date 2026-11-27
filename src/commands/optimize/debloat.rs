@@ -9,7 +9,7 @@ use anyhow::Result;
 use console::style;
 
 #[cfg(windows)]
-use std::process::Command;
+use crate::commands::subprocess::quiet_command;
 
 use super::common::{Tweak, TweakAction, TweakCategory, TweakRisk};
 use super::TweakRegistry;
@@ -369,7 +369,7 @@ pub fn register_tweaks(registry: &mut TweakRegistry) {
 /// List installed AppX packages
 #[cfg(windows)]
 pub fn list_installed_apps() -> Result<Vec<(String, String)>> {
-    let output = Command::new("powershell")
+    let output = quiet_command("powershell")
         .args([
             "-NoProfile",
             "-ExecutionPolicy",
@@ -432,7 +432,7 @@ pub fn remove_app(name_pattern: &str, dry_run: bool) -> Result<bool> {
         safe_pattern
     );
 
-    let output = Command::new("powershell")
+    let output = quiet_command("powershell")
         .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
         .output()?;
 
@@ -462,7 +462,7 @@ pub fn remove_provisioned_app(name_pattern: &str, dry_run: bool) -> Result<bool>
         safe_pattern
     );
 
-    let output = Command::new("powershell")
+    let output = quiet_command("powershell")
         .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
         .output()?;
 

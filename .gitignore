@@ -38,3 +38,6 @@ out/
 
 # Package files (when published)
 *.nupkg
+
+.agents
+.rcode

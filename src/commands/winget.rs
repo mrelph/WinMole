@@ -1,14 +1,14 @@
 use anyhow::Result;
 use console::style;
 use dialoguer::{theme::ColorfulTheme, MultiSelect, Select};
-use std::process::Command;
 
+use crate::commands::subprocess::quiet_command;
 use crate::commands::{print_error, print_progress, print_success, print_warning};
 use crate::ui::theme::{self, icons};
 
 pub fn run(action: &str, package: Option<&str>, all: bool) -> Result<()> {
     // Check if winget is available
-    let winget_check = Command::new("winget").arg("--version").output();
+    let winget_check = quiet_command("winget").arg("--version").output();
 
     if winget_check.is_err() {
         print_error("winget is not installed or not in PATH");
@@ -48,7 +48,7 @@ fn list_packages() -> Result<()> {
     print_progress("Fetching installed packages...");
     println!();
 
-    let output = Command::new("winget")
+    let output = quiet_command("winget")
         .args(["list", "--accept-source-agreements"])
         .output()?;
 
@@ -99,7 +99,7 @@ fn audit_packages() -> Result<()> {
     print_progress("Checking for updates...");
     println!();
 
-    let output = Command::new("winget")
+    let output = quiet_command("winget")
         .args(["upgrade", "--accept-source-agreements"])
         .output()?;
 
@@ -148,7 +148,7 @@ fn update_packages(package: Option<&str>, all: bool) -> Result<()> {
         print_progress("Updating all packages...");
         println!();
 
-        let status = Command::new("winget")
+        let status = quiet_command("winget")
             .args([
                 "upgrade",
                 "--all",
@@ -166,7 +166,7 @@ fn update_packages(package: Option<&str>, all: bool) -> Result<()> {
         print_progress(&format!("Updating {}...", pkg));
         println!();
 
-        let status = Command::new("winget")
+        let status = quiet_command("winget")
             .args([
                 "upgrade",
                 pkg,
@@ -218,7 +218,7 @@ fn update_packages(package: Option<&str>, all: bool) -> Result<()> {
                 let (name, id, _, _) = &upgradable[idx];
                 print_progress(&format!("Updating {} ({})...", name, id));
 
-                let status = Command::new("winget")
+                let status = quiet_command("winget")
                     .args([
                         "upgrade",
                         id,
@@ -253,7 +253,7 @@ fn search_packages(query: Option<&str>) -> Result<()> {
     print_progress(&format!("Searching for '{}'...", query));
     println!();
 
-    let output = Command::new("winget")
+    let output = quiet_command("winget")
         .args(["search", query, "--accept-source-agreements"])
         .output()?;
 
@@ -302,7 +302,7 @@ fn install_package(package: Option<&str>) -> Result<()> {
     print_progress(&format!("Installing {}...", package));
     println!();
 
-    let status = Command::new("winget")
+    let status = quiet_command("winget")
         .args([
             "install",
             package,
@@ -325,7 +325,7 @@ fn uninstall_package(package: Option<&str>) -> Result<()> {
         print_progress(&format!("Uninstalling {}...", pkg));
         println!();
 
-        let status = Command::new("winget").args(["uninstall", pkg]).status()?;
+        let status = quiet_command("winget").args(["uninstall", pkg]).status()?;
 
         if status.success() {
             print_success(&format!("{} uninstalled successfully", pkg));
@@ -376,7 +376,7 @@ fn uninstall_package(package: Option<&str>) -> Result<()> {
                 println!();
                 print_progress(&format!("Uninstalling {}...", name));
 
-                let status = Command::new("winget").args(["uninstall", id]).status()?;
+                let status = quiet_command("winget").args(["uninstall", id]).status()?;
 
                 if status.success() {
                     print_success(&format!("{} uninstalled successfully", name));
@@ -404,7 +404,7 @@ fn export_packages() -> Result<()> {
 
     print_progress(&format!("Exporting to {}...", export_path.display()));
 
-    let status = Command::new("winget")
+    let status = quiet_command("winget")
         .args([
             "export",
             "-o",
@@ -453,7 +453,7 @@ fn get_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
 
 /// Get available package updates without writing progress to the terminal.
 pub fn scan_upgradable_packages() -> Result<Vec<(String, String, String, String)>> {
-    let output = Command::new("winget")
+    let output = quiet_command("winget")
         .args(["upgrade", "--accept-source-agreements"])
         .output()?;
 
@@ -524,7 +524,7 @@ pub fn scan_upgradable_packages() -> Result<Vec<(String, String, String, String)
 
 /// Upgrade a single package without writing into an active full-screen TUI.
 pub fn upgrade_package_quiet(package_id: &str) -> Result<()> {
-    let output = Command::new("winget")
+    let output = quiet_command("winget")
         .args([
             "upgrade",
             "--id",
@@ -551,7 +551,7 @@ pub fn upgrade_package_quiet(package_id: &str) -> Result<()> {
 fn get_installed_packages() -> Result<Vec<(String, String, String)>> {
     print_progress("Fetching installed packages...");
 
-    let output = Command::new("winget")
+    let output = quiet_command("winget")
         .args(["list", "--accept-source-agreements"])
         .output()?;
 

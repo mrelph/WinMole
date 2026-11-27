@@ -7,7 +7,7 @@ pub mod storage;
 use anyhow::Result;
 use console::style;
 use dialoguer::{theme::ColorfulTheme, MultiSelect, Select};
-use std::process::Command;
+use crate::commands::subprocess::quiet_command;
 
 use crate::commands;
 use crate::ui::theme::{self, icons};
@@ -101,14 +101,14 @@ impl FixExecutor {
     }
 
     fn run_powershell(&self, script: &str) -> Result<bool> {
-        let output = Command::new("powershell")
+        let output = quiet_command("powershell")
             .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
             .output()?;
         Ok(output.status.success())
     }
 
     fn run_system_command(&self, command: &str, args: &[String]) -> Result<bool> {
-        let output = Command::new(command).args(args).output()?;
+        let output = quiet_command(command).args(args).output()?;
         Ok(output.status.success())
     }
 

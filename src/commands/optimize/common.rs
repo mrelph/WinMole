@@ -276,7 +276,7 @@ impl fmt::Display for RegistryValue {
 // ============================================================================
 
 /// Individual action that can be performed as part of a tweak
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TweakAction {
     /// Set a registry value
@@ -400,7 +400,7 @@ impl TweakAction {
 // ============================================================================
 
 /// A complete tweak definition with metadata and actions
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Tweak {
     /// Unique identifier for this tweak
     pub id: String,

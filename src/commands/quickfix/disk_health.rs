@@ -30,8 +30,8 @@ impl CategoryScanner for DiskHealthScanner {
 fn scan_smart_status(issues: &mut Vec<Issue>) {
     #[cfg(windows)]
     {
-        use std::process::Command;
-        let output = Command::new("powershell")
+        use crate::commands::subprocess::quiet_command;
+        let output = quiet_command("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",
@@ -79,8 +79,8 @@ fn scan_smart_status(issues: &mut Vec<Issue>) {
 fn scan_smart_counters(issues: &mut Vec<Issue>) {
     #[cfg(windows)]
     {
-        use std::process::Command;
-        let output = Command::new("powershell")
+        use crate::commands::subprocess::quiet_command;
+        let output = quiet_command("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",
@@ -150,8 +150,8 @@ fn scan_smart_counters(issues: &mut Vec<Issue>) {
 fn scan_trim_status(issues: &mut Vec<Issue>) {
     #[cfg(windows)]
     {
-        use std::process::Command;
-        let output = Command::new("fsutil")
+        use crate::commands::subprocess::quiet_command;
+        let output = quiet_command("fsutil")
             .args(["behavior", "query", "DisableDeleteNotify"])
             .output();
 
@@ -201,9 +201,9 @@ fn scan_trim_status(issues: &mut Vec<Issue>) {
 fn scan_fragmentation(issues: &mut Vec<Issue>) {
     #[cfg(windows)]
     {
-        use std::process::Command;
+        use crate::commands::subprocess::quiet_command;
         // First check if C: is an HDD
-        let media_check = Command::new("powershell")
+        let media_check = quiet_command("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",
@@ -228,7 +228,7 @@ fn scan_fragmentation(issues: &mut Vec<Issue>) {
         }
 
         // Analyze fragmentation
-        let output = Command::new("powershell")
+        let output = quiet_command("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",

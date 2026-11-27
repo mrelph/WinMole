@@ -1,9 +1,14 @@
+#![cfg_attr(all(feature = "nsh-ui", windows), windows_subsystem = "windows")]
+
 mod commands;
 mod config;
 mod operations;
 mod scanner;
 mod system;
 mod ui;
+
+#[cfg(feature = "nsh-ui")]
+mod ui_nsh;
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
@@ -32,7 +37,8 @@ struct Cli {
     verbose: u8,
 
     /// Output machine-readable JSON to stdout (status, disk, clean --dry-run,
-    /// optimize --list); suppresses colors, spinners, and prompts
+    /// optimize --list, diagnose processes --kill-stale); suppresses colors,
+    /// spinners, and prompts
     #[arg(long, global = true)]
     json: bool,
 }
@@ -159,6 +165,18 @@ enum Commands {
         /// Action: processes, memory, services, all
         #[arg(default_value = "all")]
         action: String,
+
+        /// Preview and clean residual IDE, opencode, and Git processes
+        #[arg(long)]
+        kill_stale: bool,
+
+        /// Preview residual processes without terminating them
+        #[arg(short = 'n', long, requires = "kill_stale")]
+        dry_run: bool,
+
+        /// Terminate all residual candidates without prompting
+        #[arg(short = 'y', long, requires = "kill_stale")]
+        yes: bool,
     },
 
     /// Show build, executable, configuration, and installation diagnostics
@@ -302,6 +320,10 @@ enum Commands {
         #[arg(short = 'n', long)]
         dry_run: bool,
     },
+
+    /// Open the native desktop UI (NSH; windows-only)
+    #[cfg(feature = "nsh-ui")]
+    Ui,
 }
 
 fn main() -> Result<()> {
@@ -327,7 +349,34 @@ fn main() -> Result<()> {
         return commands::quick_scan();
     }
 
-    // Handle interactive mode or no subcommand
+    // The native desktop UI is its own subcommand and blocks in the window's
+    // message loop until the user closes the window.
+    #[cfg(feature = "nsh-ui")]
+    if let Some(Commands::Ui) = cli.command {
+        ui_nsh::run::show();
+        return Ok(());
+    }
+
+    // Interactive mode is always the ratatui TUI (kept alongside the NSH UI).
+    // With the nsh-ui feature on, a bare `winmole` opens the native desktop
+    // UI instead of the TUI; without it the TUI stays the default.
+    #[cfg(feature = "nsh-ui")]
+    if cli.interactive {
+        if cli.json {
+            anyhow::bail!("--json requires a subcommand (it cannot drive the interactive TUI)");
+        }
+        return ui::run_tui();
+    }
+    #[cfg(feature = "nsh-ui")]
+    if cli.command.is_none() {
+        if cli.json {
+            anyhow::bail!("--json requires a subcommand (it cannot drive the interactive UI)");
+        }
+        ui_nsh::run::show();
+        return Ok(());
+    }
+
+    #[cfg(not(feature = "nsh-ui"))]
     if cli.interactive || cli.command.is_none() {
         if cli.json {
             anyhow::bail!("--json requires a subcommand (it cannot drive the interactive TUI)");
@@ -412,7 +461,12 @@ fn main() -> Result<()> {
             impact,
         } => commands::startup::run(&action, name.as_deref(), impact),
 
-        Commands::Diagnose { action } => commands::diagnose::run(&action),
+        Commands::Diagnose {
+            action,
+            kill_stale,
+            dry_run,
+            yes,
+        } => commands::diagnose::run(&action, kill_stale, dry_run, yes, json),
 
         Commands::Doctor => commands::doctor::run(json),
 
@@ -476,6 +530,13 @@ fn main() -> Result<()> {
         } => commands::quickfix::run(&action, category.as_deref(), dry_run),
 
         Commands::SelfUpdate { check } => commands::self_update::run(check),
+
+        #[cfg(feature = "nsh-ui")]
+        Commands::Ui => {
+            // The NSH window runs its own message loop and reports the exit
+            // code itself; errors were already surfaced in the UI.
+            return Ok(());
+        }
 
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();
